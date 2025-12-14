@@ -1,0 +1,300 @@
+apiVersion: plugin.nexuspro.io/v1
+kind: PluginSchema
+metadata:
+  name: ose-plugin-schema
+  version: "∞.7"
+spec:
+  required_fields:
+    - name
+    - version
+    - feature
+    - api_version
+  
+  fields:
+    - name: metadata
+      type: object
+      required: true
+      fields:
+        - name: name
+          type: string
+          pattern: "^[a-z0-9-]+$"
+          max_length: 50
+          description: "Plugin identifier (lowercase, alphanumeric, hyphens)"
+        
+        - name: version
+          type: string
+          pattern: "^v?[0-9]+\.[0-9]+\.[0-9]+"
+          description: "Semantic version (e.g., 1.0.0 or v1.0.0)"
+        
+        - name: feature
+          type: string
+          enum: ["ai-ml", "web3-blockchain", "cloud-native", "data-engineering", 
+                 "devops-platform", "security-platform", "system-ops", "observability"]
+          description: "Feature category for classification"
+        
+        - name: display_name
+          type: string
+          max_length: 100
+          description: "Human-readable plugin name"
+        
+        - name: description
+          type: string
+          max_length: 500
+          description: "Plugin purpose and capabilities"
+        
+        - name: icon
+          type: string
+          pattern: "^[🎨🧠🔗☁️📊🚀🛡️⚙️📈].*$"
+          description: "Emoji or icon identifier"
+        
+        - name: author
+          type: string
+          max_length: 100
+        
+        - name: license
+          type: string
+          max_length: 50
+        
+        - name: tags
+          type: array
+          items:
+            type: string
+          max_items: 20
+    
+    - name: capabilities
+      type: object
+      description: "Plugin capabilities and API surface"
+      fields:
+        - name: api_endpoints
+          type: array
+          items:
+            type: object
+            fields:
+              - name: path
+                type: string
+                description: "API endpoint path (e.g., /api/v1/predict)"
+              
+              - name: method
+                type: string
+                enum: ["GET", "POST", "PUT", "DELETE", "PATCH"]
+              
+              - name: protocol
+                type: string
+                enum: ["http", "grpc", "websocket", "graphql"]
+              
+              - name: description
+                type: string
+        
+        - name: events
+          type: array
+          description: "Events published by this plugin"
+          items:
+            type: string
+        
+        - name: commands
+          type: array
+          description: "CLI commands provided"
+          items:
+            type: string
+        
+        - name: webhooks
+          type: array
+          description: "Webhook endpoints"
+          items:
+            type: object
+    
+    - name: dependencies
+      type: object
+      fields:
+        - name: system
+          type: array
+          description: "System-level dependencies (e.g., python3, cuda)"
+          items:
+            type: string
+        
+        - name: plugins
+          type: array
+          description: "Other plugin dependencies"
+          items:
+            type: string
+        
+        - name: services
+          type: array
+          description: "External service dependencies"
+          items:
+            type: string
+    
+    - name: mesh_integration
+      type: object
+      description: "Service mesh integration configuration"
+      fields:
+        - name: service_name
+          type: string
+          pattern: "^[a-z0-9-]+$"
+          description: "Service name in mesh"
+        
+        - name: port
+          type: integer
+          minimum: 1024
+          maximum: 65535
+          description: "Primary service port"
+        
+        - name: protocol
+          type: string
+          enum: ["HTTP", "gRPC", "TCP", "UDP"]
+          default: "HTTP"
+        
+        - name: sidecar
+          type: boolean
+          default: true
+          description: "Enable Istio sidecar injection"
+        
+        - name: replicas
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 1
+        
+        - name: traffic_rules
+          type: object
+          fields:
+            - name: load_balancer
+              type: string
+              enum: ["round_robin", "least_conn", "random", "weighted"]
+              default: "round_robin"
+            
+            - name: circuit_breaker
+              type: object
+              fields:
+                - name: max_connections
+                  type: integer
+                  default: 1000
+                
+                - name: max_requests
+                  type: integer
+                  default: 100
+                
+                - name: max_retries
+                  type: integer
+                  default: 3
+            
+            - name: timeout
+              type: string
+              pattern: "^[0-9]+(ms|s|m|h)$"
+              default: "30s"
+            
+            - name: retry
+              type: object
+              fields:
+                - name: attempts
+                  type: integer
+                  default: 3
+                
+                - name: per_try_timeout
+                  type: string
+                  default: "10s"
+        
+        - name: observability
+          type: object
+          fields:
+            - name: metrics
+              type: boolean
+              default: true
+            
+            - name: tracing
+              type: boolean
+              default: true
+            
+            - name: logging
+              type: boolean
+              default: true
+            
+            - name: health_check
+              type: object
+              fields:
+                - name: path
+                  type: string
+                  default: "/health"
+                
+                - name: interval
+                  type: string
+                  default: "10s"
+                
+                - name: timeout
+                  type: string
+                  default: "5s"
+    
+    - name: ui
+      type: object
+      description: "Dashboard UI configuration"
+      fields:
+        - name: tab_name
+          type: string
+          description: "Tab label in dashboard"
+        
+        - name: tab_icon
+          type: string
+          description: "Tab icon"
+        
+        - name: dashboard_url
+          type: string
+          description: "Plugin-specific dashboard URL"
+        
+        - name: settings_path
+          type: string
+          description: "Settings configuration path"
+        
+        - name: requires_auth
+          type: boolean
+          default: false
+        
+        - name: theme
+          type: object
+          fields:
+            - name: primary_color
+              type: string
+            
+            - name: accent_color
+              type: string
+    
+    - name: resources
+      type: object
+      description: "Resource requirements and limits"
+      fields:
+        - name: requests
+          type: object
+          fields:
+            - name: cpu
+              type: string
+              pattern: "^[0-9]+(m|[0-9]+)?$"
+              default: "100m"
+            
+            - name: memory
+              type: string
+              pattern: "^[0-9]+(Mi|Gi)$"
+              default: "128Mi"
+        
+        - name: limits
+          type: object
+          fields:
+            - name: cpu
+              type: string
+              default: "1000m"
+            
+            - name: memory
+              type: string
+              default: "512Mi"
+  
+  validation_rules:
+    - name: version_format
+      rule: "version must be semantic versioning"
+      regex: "^v?[0-9]+\\.[0-9]+\\.[0-9]+(-[a-zA-Z0-9.-]+)?(\\+[a-zA-Z0-9.-]+)?$"
+    
+    - name: service_name_format
+      rule: "service names must be DNS-1123 compliant"
+      regex: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+    
+    - name: port_range
+      rule: "ports must be in unprivileged range"
+      min: 1024
+      max: 65535

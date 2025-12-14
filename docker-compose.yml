@@ -1,0 +1,327 @@
+version: '3.8'
+
+services:
+  # ==================== Core Services ====================
+  
+  # PostgreSQL - Primary Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: ose-postgres
+    environment:
+      POSTGRES_DB: ose
+      POSTGRES_USER: ose
+      POSTGRES_PASSWORD: ose_secure_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ose"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ose-network
+
+  # Redis - Cache & Sessions
+  redis:
+    image: redis:7-alpine
+    container_name: ose-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - ose-network
+
+  # RabbitMQ - Message Queue
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: ose-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ose
+      RABBITMQ_DEFAULT_PASS: ose_queue_password
+    ports:
+      - "5672:5672"   # AMQP
+      - "15672:15672" # Management UI
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - ose-network
+
+  # ==================== Microservices ====================
+
+  # Discovery Service
+  discovery:
+    build:
+      context: ./modules/discovery
+      dockerfile: Dockerfile
+    container_name: ose-discovery
+    ports:
+      - "8001:8001"
+    environment:
+      - DATABASE_URL=postgresql://ose:ose_secure_password@postgres:5432/ose
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - /sys:/host/sys:ro
+      - /proc:/host/proc:ro
+    privileged: true
+    networks:
+      - ose-network
+    restart: unless-stopped
+
+  # Factory Reset Service
+  factory-reset:
+    build:
+      context: ./modules/factory-reset
+      dockerfile: Dockerfile
+    container_name: ose-factory-reset
+    ports:
+      - "8002:8002"
+    environment:
+      - DATABASE_URL=postgresql://ose:ose_secure_password@postgres:5432/ose
+      - REDIS_URL=redis://redis:6379
+      - RABBITMQ_URL=amqp://ose:ose_queue_password@rabbitmq:5672
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    volumes:
+      - /home:/host/home
+      - /var:/host/var:ro
+      - backup_data:/var/backups/ose
+    privileged: true
+    networks:
+      - ose-network
+    restart: unless-stopped
+
+  # Reinstallation Service
+  reinstallation:
+    build:
+      context: ./modules/reinstallation
+      dockerfile: Dockerfile
+    container_name: ose-reinstallation
+    ports:
+      - "8003:8003"
+    environment:
+      - DATABASE_URL=postgresql://ose:ose_secure_password@postgres:5432/ose
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - /etc:/host/etc:ro
+    networks:
+      - ose-network
+    restart: unless-stopped
+
+  # Optimization Service
+  optimization:
+    build:
+      context: ./modules/optimization
+      dockerfile: Dockerfile
+    container_name: ose-optimization
+    ports:
+      - "8004:8004"
+    environment:
+      - DATABASE_URL=postgresql://ose:ose_secure_password@postgres:5432/ose
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - /sys:/host/sys
+      - /proc:/host/proc:ro
+    privileged: true
+    networks:
+      - ose-network
+    restart: unless-stopped
+
+  # Terminal Config Service
+  terminal-config:
+    build:
+      context: ./modules/terminal-config
+      dockerfile: Dockerfile
+    container_name: ose-terminal-config
+    ports:
+      - "8005:8005"
+    environment:
+      - DATABASE_URL=postgresql://ose:ose_secure_password@postgres:5432/ose
+      - REDIS_URL=redis://redis:6379
+      - GIT_REPO_URL=https://github.com/ose/configs
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - config_data:/app/configs
+    networks:
+      - ose-network
+    restart: unless-stopped
+
+  # Metrics Collector Service
+  metrics-collector:
+    build:
+      context: ./modules/metrics-collector
+      dockerfile: Dockerfile
+    container_name: ose-metrics-collector
+    ports:
+      - "8006:8006"
+    environment:
+      - DATABASE_URL=postgresql://ose:ose_secure_password@postgres:5432/ose
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - ose-network
+    restart: unless-stopped
+
+  # ==================== Service Mesh Dashboard ====================
+
+  # Service Mesh - Centralized Monitoring Dashboard
+  service-mesh:
+    build:
+      context: ./modules/service-mesh
+      dockerfile: Dockerfile
+    container_name: ose-service-mesh
+    ports:
+      - "8000:8000"
+    depends_on:
+      - discovery
+      - factory-reset
+      - reinstallation
+      - optimization
+      - terminal-config
+      - metrics-collector
+    networks:
+      - ose-network
+    restart: unless-stopped
+
+  # ==================== API Gateway ====================
+
+  # Traefik - API Gateway & Load Balancer
+  gateway:
+    image: traefik:v2.10
+    container_name: ose-gateway
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+    ports:
+      - "8080:80"      # HTTP (changed from 8000)
+      - "8443:443"     # HTTPS
+      - "8081:8080"    # Traefik Dashboard (changed from 8080)
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - ose-network
+    restart: unless-stopped
+    depends_on:
+      - service-mesh
+
+  # ==================== Monitoring Stack ====================
+
+  # Prometheus - Metrics Collection
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: ose-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./modules/metrics-collector/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    networks:
+      - ose-network
+    restart: unless-stopped
+    depends_on:
+      - metrics-collector
+
+  # Grafana - Metrics Visualization
+  grafana:
+    image: grafana/grafana:latest
+    container_name: ose-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+      - metrics-collector
+    networks:
+      - ose-network
+    restart: unless-stopped
+
+  # Loki - Log Aggregation
+  loki:
+    image: grafana/loki:latest
+    container_name: ose-loki
+    ports:
+      - "3100:3100"
+    volumes:
+      - loki_data:/loki
+    networks:
+      - ose-network
+    restart: unless-stopped
+
+# ==================== Networks ====================
+
+networks:
+  ose-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+# ==================== Volumes ====================
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  rabbitmq_data:
+    driver: local
+  backup_data:
+    driver: local
+  config_data:
+    driver: local
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+  loki_data:
+    driver: local

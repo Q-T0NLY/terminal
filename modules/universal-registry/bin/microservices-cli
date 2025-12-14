@@ -1,0 +1,334 @@
+#!/bin/bash
+# Universal Registry Microservices CLI
+# Version: ∞.8
+
+set -e
+
+# Configuration
+REGISTRY_API="${UNIVERSAL_REGISTRY_API:-http://localhost:8080/api/v1}"
+CLI_VERSION="∞.8"
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+WHITE='\033[1;37m'
+NC='\033[0m'
+
+print_success() { echo -e "${GREEN}✓${NC} $1"; }
+print_error() { echo -e "${RED}✗${NC} $1" >&2; }
+print_warning() { echo -e "${YELLOW}⚠${NC} $1"; }
+print_info() { echo -e "${BLUE}ℹ${NC} $1"; }
+
+check_registry() {
+    if ! curl -s "${REGISTRY_API%/api/v1}/health" &>/dev/null; then
+        print_error "Registry is not running"
+        return 1
+    fi
+    return 0
+}
+
+cmd_services() {
+    case "${1:-list}" in
+        list|ls)
+            echo -e "${CYAN}═══════════════════════════════════════════════════════════${NC}"
+            echo -e "${WHITE}        Registered Microservices${NC}"
+            echo -e "${CYAN}═══════════════════════════════════════════════════════════${NC}"
+            check_registry || return 1
+            
+            curl -s "${REGISTRY_API}/services" | python3 -c "
+import sys, json
+try:
+    data = json.load(sys.stdin)
+    services = data.get('services', {})
+    if not services:
+        print('  No microservices registered yet')
+    else:
+        print(f'{'ID':<25} {'Name':<30} {'Port':<6} {'Status':<12} {'Health'}')
+        print('-' * 90)
+        for sid, info in services.items():
+            status = info.get('status', 'unknown')
+            icon = '✓' if status == 'active' else '✗'
+            print(f'{icon} {sid:<24} {info[\"name\"]:<30} {info.get(\"port\", \"N/A\"):<6} {status:<12} {info.get(\"health\", \"unknown\")}')
+except Exception as e:
+    print(f'Error: {e}', file=sys.stderr)
+"
+            ;;
+        register|add)
+            echo -e "${WHITE}Register New Microservice${NC}"
+            echo ""
+            read -p "  Service ID: " sid
+            read -p "  Service Name: " sname
+            read -p "  Port: " sport
+            read -p "  Description: " sdesc
+            read -p "  Category (application/database/cache/monitoring): " scat
+            
+            echo ""
+            print_info "Registering service..."
+            
+            response=$(curl -s -X POST "${REGISTRY_API}/services/register" \
+                -H "Content-Type: application/json" \
+                -d "{\"id\":\"$sid\",\"name\":\"$sname\",\"port\":$sport,\"description\":\"$sdesc\",\"category\":\"${scat:-application}\"}")
+            
+            if echo "$response" | grep -q "service_id"; then
+                print_success "Service registered successfully!"
+                echo "$response" | python3 -m json.tool
+            else
+                print_error "Failed to register service"
+                echo "$response"
+            fi
+            ;;
+        start)
+            if [ -z "$2" ]; then
+                print_error "Service ID required"
+                exit 1
+            fi
+            print_info "Starting service: $2"
+            curl -s -X POST "${REGISTRY_API}/services/$2/start" | python3 -m json.tool
+            ;;
+        stop)
+            if [ -z "$2" ]; then
+                print_error "Service ID required"
+                exit 1
+            fi
+            print_warning "Stopping service: $2"
+            curl -s -X POST "${REGISTRY_API}/services/$2/stop" | python3 -m json.tool
+            ;;
+        restart)
+            if [ -z "$2" ]; then
+                print_error "Service ID required"
+                exit 1
+            fi
+            print_info "Restarting service: $2"
+            curl -s -X POST "${REGISTRY_API}/services/$2/restart" | python3 -m json.tool
+            ;;
+        logs)
+            if [ -z "$2" ]; then
+                print_error "Service ID required"
+                exit 1
+            fi
+            echo -e "${CYAN}═══════════════════════════════════════════════════════════${NC}"
+            echo -e "${WHITE}        Logs for $2${NC}"
+            echo -e "${CYAN}═══════════════════════════════════════════════════════════${NC}"
+            curl -s "${REGISTRY_API}/services/$2/logs" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+for log in data.get('logs', []):
+    print(f'[{log[\"timestamp\"]}] {log[\"level\"]}: {log[\"message\"]}')
+"
+            ;;
+        *)
+            print_error "Unknown action: ${1}"
+            echo ""
+            echo "Available actions:"
+            echo "  list      - List all microservices"
+            echo "  register  - Register new microservice"
+            echo "  start     - Start a microservice"
+            echo "  stop      - Stop a microservice"
+            echo "  restart   - Restart a microservice"
+            echo "  logs      - View service logs"
+            exit 1
+            ;;
+    esac
+}
+
+cmd_stream() {
+    case "${1:-list}" in
+        list)
+            echo -e "${CYAN}═══════════════════════════════════════════════════════════${NC}"
+            echo -e "${WHITE}        Event Stream Statistics${NC}"
+            echo -e "${CYAN}═══════════════════════════════════════════════════════════${NC}"
+            curl -s "${REGISTRY_API}/streams/stats" | python3 -m json.tool
+            ;;
+        subscribe)
+            local event_type="${2:-*}"
+            print_info "Subscribing to events: $event_type"
+            echo -e "${YELLOW}⚠${NC} Press Ctrl+C to stop"
+            echo ""
+            
+            curl -s -N "${REGISTRY_API}/streams/subscribe?event_type=$event_type" | while read line; do
+                echo -e "${GREEN}📨${NC} $line"
+            done
+            ;;
+        *)
+            print_error "Unknown action. Use: list|subscribe"
+            ;;
+    esac
+}
+
+cmd_webhook() {
+    case "${1:-list}" in
+        list)
+            echo -e "${CYAN}═══════════════════════════════════════════════════════════${NC}"
+            echo -e "${WHITE}        Registered Webhooks${NC}"
+            echo -e "${CYAN}═══════════════════════════════════════════════════════════${NC}"
+            curl -s "${REGISTRY_API}/webhooks" | python3 -m json.tool
+            ;;
+        add)
+            echo -e "${WHITE}Register New Webhook${NC}"
+            echo ""
+            read -p "  Webhook URL: " url
+            read -p "  Events (comma-separated): " events
+            read -p "  Secret (optional): " secret
+            
+            echo ""
+            print_info "Registering webhook..."
+            
+            events_json=$(echo "$events" | sed 's/,/","/g' | sed 's/^/["/;s/$/"]/')
+            
+            curl -s -X POST "${REGISTRY_API}/webhooks" \
+                -H "Content-Type: application/json" \
+                -d "{\"url\":\"$url\",\"events\":$events_json,\"secret\":\"$secret\"}" | python3 -m json.tool
+            ;;
+        delete)
+            if [ -z "$2" ]; then
+                print_error "Webhook ID required"
+                exit 1
+            fi
+            curl -s -X DELETE "${REGISTRY_API}/webhooks/$2" | python3 -m json.tool
+            ;;
+        *)
+            print_error "Unknown action. Use: list|add|delete"
+            ;;
+    esac
+}
+
+cmd_index() {
+    case "${1:-stats}" in
+        add)
+            echo -e "${WHITE}Index Document${NC}"
+            echo ""
+            read -p "  Document ID: " docid
+            read -p "  Name: " name
+            read -p "  Description: " desc
+            read -p "  Category: " cat
+            
+            echo ""
+            print_info "Indexing document..."
+            
+            curl -s -X POST "${REGISTRY_API}/search/index" \
+                -H "Content-Type: application/json" \
+                -d "{\"id\":\"$docid\",\"name\":\"$name\",\"description\":\"$desc\",\"category\":\"$cat\"}" | python3 -m json.tool
+            ;;
+        stats)
+            echo -e "${CYAN}═══════════════════════════════════════════════════════════${NC}"
+            echo -e "${WHITE}        Search Index Statistics${NC}"
+            echo -e "${CYAN}═══════════════════════════════════════════════════════════${NC}"
+            curl -s "${REGISTRY_API}/search/stats" | python3 -m json.tool
+            ;;
+        *)
+            print_error "Unknown action. Use: add|stats"
+            ;;
+    esac
+}
+
+cmd_dashboard() {
+    print_info "Opening WebUI Dashboard..."
+    local url="http://localhost:8080"
+    
+    check_registry || return 1
+    
+    if command -v xdg-open &>/dev/null; then
+        xdg-open "$url" 2>/dev/null
+        print_success "Dashboard opened in browser"
+    elif command -v open &>/dev/null; then
+        open "$url" 2>/dev/null
+        print_success "Dashboard opened in browser"
+    elif [ -n "$BROWSER" ]; then
+        "$BROWSER" "$url" 2>/dev/null
+        print_success "Dashboard opened in browser"
+    else
+        echo ""
+        echo -e "${BLUE}ℹ${NC} Dashboard URLs:"
+        echo ""
+        echo -e "  ${GREEN}Main Dashboard:${NC}"
+        echo "    $url"
+        echo ""
+        echo -e "  ${GREEN}Microservices Dashboard:${NC}"
+        echo "    $url/core/static/microservices-dashboard.html"
+        echo ""
+        echo -e "  ${GREEN}API Documentation:${NC}"
+        echo "    $url/docs"
+        echo ""
+        echo -e "  ${GREEN}Health Check:${NC}"
+        echo "    $url/health"
+    fi
+}
+
+cmd_help() {
+    cat << EOF
+${CYAN}═══════════════════════════════════════════════════════════${NC}
+${WHITE}        Universal Registry Microservices CLI${NC}
+${WHITE}                   Version ${CLI_VERSION}${NC}
+${CYAN}═══════════════════════════════════════════════════════════${NC}
+
+${WHITE}Microservices Management:${NC}
+  services list           List all registered microservices
+  services register       Register a new microservice
+  services start <id>     Start a microservice
+  services stop <id>      Stop a microservice
+  services restart <id>   Restart a microservice
+  services logs <id>      View service logs
+
+${WHITE}Event Streams:${NC}
+  stream list             Show stream statistics
+  stream subscribe [type] Subscribe to event streams
+
+${WHITE}Webhooks:${NC}
+  webhook list            List all webhooks
+  webhook add             Register a new webhook
+  webhook delete <id>     Delete a webhook
+
+${WHITE}Search Index:${NC}
+  index add               Add document to search index
+  index stats             Show index statistics
+
+${WHITE}Dashboard:${NC}
+  dashboard               Open WebUI dashboard
+
+${WHITE}Examples:${NC}
+  microservices-cli services list
+  microservices-cli services start my-service
+  microservices-cli stream subscribe entity.created
+  microservices-cli webhook add
+  microservices-cli dashboard
+
+${WHITE}Environment:${NC}
+  UNIVERSAL_REGISTRY_API  API endpoint (default: http://localhost:8080/api/v1)
+
+EOF
+}
+
+# Main command router
+case "${1:-help}" in
+    services|svc)
+        shift
+        cmd_services "$@"
+        ;;
+    stream|streams|events)
+        shift
+        cmd_stream "$@"
+        ;;
+    webhook|webhooks|hooks)
+        shift
+        cmd_webhook "$@"
+        ;;
+    index|search)
+        shift
+        cmd_index "$@"
+        ;;
+    dashboard|ui|web)
+        cmd_dashboard
+        ;;
+    help|--help|-h)
+        cmd_help
+        ;;
+    *)
+        print_error "Unknown command: ${1}"
+        echo ""
+        echo "Run 'microservices-cli help' for usage information"
+        exit 1
+        ;;
+esac

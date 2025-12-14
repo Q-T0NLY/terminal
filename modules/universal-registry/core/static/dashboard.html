@@ -1,0 +1,1214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OSE Ultra-Advanced Service Mesh v2.4.1</title>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.157.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/animejs@3.2.1/lib/anime.min.js"></script>
+    <style>
+        :root {
+            --primary: #667eea;
+            --secondary: #764ba2;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --info: #06b6d4;
+            --dark: #1e293b;
+            --light: #f8fafc;
+            --glass: rgba(255, 255, 255, 0.1);
+            --glass-border: rgba(255, 255, 255, 0.2);
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+            color: #fff;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+        
+        /* Animated Background Particles */
+        #particles {
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            z-index: 0;
+            opacity: 0.3;
+        }
+        
+        .container {
+            position: relative;
+            z-index: 1;
+            max-width: 1920px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        /* Header */
+        header {
+            backdrop-filter: blur(20px);
+            background: var(--glass);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            animation: slideDown 0.8s ease-out;
+        }
+        
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-50px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .logo-icon {
+            font-size: 3em;
+            animation: float 3s ease-in-out infinite;
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+        
+        .logo-text h1 {
+            font-size: 2.5em;
+            font-weight: 800;
+            background: linear-gradient(45deg, #fff, #a78bfa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .logo-text p {
+            font-size: 0.9em;
+            opacity: 0.9;
+            margin-top: 5px;
+        }
+        
+        .header-stats {
+            display: flex;
+            gap: 30px;
+        }
+        
+        .stat-box {
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 2.5em;
+            font-weight: 700;
+            line-height: 1;
+        }
+        
+        .stat-label {
+            font-size: 0.85em;
+            opacity: 0.8;
+            margin-top: 5px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        /* NLP Query Bar */
+        .nlp-query-section {
+            backdrop-filter: blur(20px);
+            background: var(--glass);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            padding: 25px;
+            margin-bottom: 30px;
+            animation: fadeIn 1s ease-out 0.2s both;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        
+        .nlp-input-group {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+        
+        .nlp-input {
+            flex: 1;
+            padding: 15px 20px;
+            background: rgba(255, 255, 255, 0.15);
+            border: 2px solid var(--glass-border);
+            border-radius: 15px;
+            color: #fff;
+            font-size: 1.1em;
+            transition: all 0.3s ease;
+        }
+        
+        .nlp-input:focus {
+            outline: none;
+            border-color: rgba(255, 255, 255, 0.5);
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.3);
+        }
+        
+        .nlp-input::placeholder {
+            color: rgba(255, 255, 255, 0.6);
+        }
+        
+        .query-btn {
+            padding: 15px 30px;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            border: none;
+            border-radius: 15px;
+            color: #fff;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        .query-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+        
+        .nlp-response {
+            margin-top: 20px;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            display: none;
+        }
+        
+        .nlp-response.active {
+            display: block;
+            animation: slideUp 0.5s ease-out;
+        }
+        
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        /* Main Grid Layout */
+        .main-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+        
+        @media (max-width: 1200px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        /* 3D Topology Viewer */
+        .topology-panel {
+            backdrop-filter: blur(20px);
+            background: var(--glass);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            padding: 25px;
+            animation: fadeIn 1s ease-out 0.4s both;
+        }
+        
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .panel-title {
+            font-size: 1.5em;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .view-toggle {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .toggle-btn {
+            padding: 8px 15px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid var(--glass-border);
+            border-radius: 10px;
+            color: #fff;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.9em;
+        }
+        
+        .toggle-btn.active {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            border-color: #667eea;
+        }
+        
+        #topology-canvas {
+            width: 100%;
+            height: 500px;
+            border-radius: 15px;
+            background: rgba(0, 0, 0, 0.2);
+        }
+        
+        /* AI Recommendations Panel */
+        .recommendations-panel {
+            backdrop-filter: blur(20px);
+            background: var(--glass);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            padding: 25px;
+            max-height: 500px;
+            overflow-y: auto;
+            animation: fadeIn 1s ease-out 0.6s both;
+        }
+        
+        .recommendation-card {
+            background: rgba(255, 255, 255, 0.1);
+            border-left: 4px solid var(--warning);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 15px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        
+        .recommendation-card:hover {
+            background: rgba(255, 255, 255, 0.15);
+            transform: translateX(5px);
+        }
+        
+        .recommendation-card.critical {
+            border-left-color: var(--danger);
+        }
+        
+        .recommendation-card.high {
+            border-left-color: var(--warning);
+        }
+        
+        .recommendation-card.medium {
+            border-left-color: var(--info);
+        }
+        
+        .recommendation-card.low {
+            border-left-color: var(--success);
+        }
+        
+        .rec-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 10px;
+        }
+        
+        .rec-title {
+            font-weight: 600;
+            font-size: 1.1em;
+        }
+        
+        .rec-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.75em;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .rec-description {
+            color: rgba(255, 255, 255, 0.9);
+            margin-bottom: 12px;
+            line-height: 1.5;
+        }
+        
+        .rec-metrics {
+            display: flex;
+            gap: 20px;
+            font-size: 0.9em;
+        }
+        
+        .rec-metric {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        /* Services Grid */
+        .services-section {
+            margin-bottom: 30px;
+        }
+        
+        .section-header {
+            backdrop-filter: blur(20px);
+            background: var(--glass);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            padding: 20px 25px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .section-title {
+            font-size: 1.8em;
+            font-weight: 700;
+        }
+        
+        .service-filters {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .filter-btn {
+            padding: 8px 15px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid var(--glass-border);
+            border-radius: 10px;
+            color: #fff;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.9em;
+        }
+        
+        .filter-btn.active {
+            background: var(--success);
+            border-color: var(--success);
+        }
+        
+        .services-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+            gap: 20px;
+        }
+        
+        @media (max-width: 768px) {
+            .services-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .service-card {
+            backdrop-filter: blur(20px);
+            background: var(--glass);
+            border: 2px solid var(--glass-border);
+            border-radius: 20px;
+            padding: 25px;
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .service-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+            transform: scaleX(0);
+            transform-origin: left;
+            transition: transform 0.3s ease;
+        }
+        
+        .service-card:hover::before {
+            transform: scaleX(1);
+        }
+        
+        .service-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+            border-color: rgba(255, 255, 255, 0.4);
+        }
+        
+        .service-card.healthy {
+            border-left: 4px solid var(--success);
+        }
+        
+        .service-card.degraded {
+            border-left: 4px solid var(--warning);
+        }
+        
+        .service-card.down {
+            border-left: 4px solid var(--danger);
+        }
+        
+        .service-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .service-icon {
+            font-size: 3em;
+            animation: pulse 2s ease-in-out infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+        
+        .service-info {
+            flex: 1;
+        }
+        
+        .service-name {
+            font-size: 1.3em;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+        
+        .service-desc {
+            font-size: 0.85em;
+            opacity: 0.8;
+        }
+        
+        .status-badge {
+            padding: 6px 15px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 600;
+            text-transform: uppercase;
+            animation: glow 2s ease-in-out infinite;
+        }
+        
+        @keyframes glow {
+            0%, 100% { box-shadow: 0 0 10px currentColor; }
+            50% { box-shadow: 0 0 20px currentColor; }
+        }
+        
+        .status-badge.healthy {
+            background: var(--success);
+            color: #fff;
+        }
+        
+        .status-badge.degraded {
+            background: var(--warning);
+            color: #fff;
+        }
+        
+        .status-badge.down {
+            background: var(--danger);
+            color: #fff;
+        }
+        
+        /* Health Score */
+        .health-score-container {
+            margin: 20px 0;
+        }
+        
+        .score-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .score-label {
+            font-size: 0.9em;
+            opacity: 0.9;
+        }
+        
+        .score-bar-container {
+            flex: 1;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            margin: 0 15px;
+            overflow: hidden;
+        }
+        
+        .score-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #10b981, #3b82f6, #8b5cf6);
+            border-radius: 4px;
+            transition: width 1s ease-out;
+        }
+        
+        .score-value {
+            font-weight: 600;
+            min-width: 45px;
+            text-align: right;
+        }
+        
+        /* Metrics Grid */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin: 20px 0;
+        }
+        
+        .metric-item {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 12px;
+            border-radius: 10px;
+            text-align: center;
+        }
+        
+        .metric-value {
+            font-size: 1.3em;
+            font-weight: 700;
+            color: var(--info);
+        }
+        
+        .metric-label {
+            font-size: 0.75em;
+            opacity: 0.8;
+            margin-top: 5px;
+        }
+        
+        /* Action Buttons */
+        .service-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        
+        .action-btn {
+            flex: 1;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid var(--glass-border);
+            border-radius: 10px;
+            color: #fff;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.9em;
+            font-weight: 600;
+        }
+        
+        .action-btn:hover {
+            background: linear-gradient(45deg, var(--primary), var(--secondary));
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+        
+        /* Connection Status */
+        .connection-status {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 12px 20px;
+            background: rgba(0, 0, 0, 0.8);
+            border-radius: 25px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.9em;
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+        }
+        
+        .connection-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: var(--success);
+            animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+        }
+        
+        .connection-dot.disconnected {
+            background: var(--danger);
+            animation: none;
+        }
+        
+        @keyframes ping {
+            75%, 100% {
+                transform: scale(2);
+                opacity: 0;
+            }
+        }
+        
+        /* Loading */
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 10px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 5px;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: linear-gradient(180deg, var(--primary), var(--secondary));
+            border-radius: 5px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: linear-gradient(180deg, var(--secondary), var(--primary));
+        }
+    </style>
+</head>
+<body>
+    <!-- Animated Particle Background -->
+    <canvas id="particles"></canvas>
+    
+    <!-- Connection Status -->
+    <div class="connection-status">
+        <div class="connection-dot" id="connectionDot"></div>
+        <span id="connectionText">Connecting...</span>
+    </div>
+    
+    <div class="container">
+        <!-- Header -->
+        <header>
+            <div class="header-content">
+                <div class="logo">
+                    <div class="logo-icon">🌐</div>
+                    <div class="logo-text">
+                        <h1>OSE Service Mesh</h1>
+                        <p>Ultra-Advanced Microservices Orchestration Platform v2.4.1</p>
+                    </div>
+                </div>
+                <div class="header-stats">
+                    <div class="stat-box">
+                        <div class="stat-value" id="totalServices">12</div>
+                        <div class="stat-label">Services</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value" style="color: var(--success);" id="healthyServices">-</div>
+                        <div class="stat-label">Healthy</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value" style="color: var(--info);" id="totalEndpoints">235</div>
+                        <div class="stat-label">Endpoints</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value" id="overallScore">-</div>
+                        <div class="stat-label">Health Score</div>
+                    </div>
+                </div>
+            </div>
+        </header>
+        
+        <!-- NLP Query Section -->
+        <div class="nlp-query-section">
+            <div class="nlp-input-group">
+                <input type="text" class="nlp-input" id="nlpInput" 
+                       placeholder="🤖 Ask me anything... (e.g., 'Why is the reinstallation service slow?')" />
+                <button class="query-btn" onclick="processNLPQuery()">
+                    <span id="queryBtnText">Ask AI</span>
+                </button>
+            </div>
+            <div class="nlp-response" id="nlpResponse"></div>
+        </div>
+        
+        <!-- Main Grid -->
+        <div class="main-grid">
+            <!-- 3D Topology Viewer -->
+            <div class="topology-panel">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <span>🔮</span> Service Topology Graph
+                    </div>
+                    <div class="view-toggle">
+                        <button class="toggle-btn active" onclick="setTopologyView('3d')">3D View</button>
+                        <button class="toggle-btn" onclick="setTopologyView('2d')">2D View</button>
+                        <button class="toggle-btn" onclick="setTopologyView('dag')">DAG View</button>
+                    </div>
+                </div>
+                <div id="topology-canvas"></div>
+            </div>
+            
+            <!-- AI Recommendations -->
+            <div class="recommendations-panel">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <span>🤖</span> AI Recommendations
+                    </div>
+                </div>
+                <div id="recommendationsContainer">
+                    <div class="loading"></div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Services Section -->
+        <div class="services-section">
+            <div class="section-header">
+                <div class="section-title">🎯 Service Status</div>
+                <div class="service-filters">
+                    <button class="filter-btn active" onclick="filterServices('all')">All</button>
+                    <button class="filter-btn" onclick="filterServices('application')">Applications</button>
+                    <button class="filter-btn" onclick="filterServices('infrastructure')">Infrastructure</button>
+                </div>
+            </div>
+            <div class="services-grid" id="servicesGrid"></div>
+        </div>
+    </div>
+    
+    <script>
+        // WebSocket Connection
+        let ws = null;
+        let reconnectInterval = null;
+        let servicesData = {};
+        let topologyData = null;
+        let recommendationsData = [];
+        
+        // Connect to WebSocket
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            ws = new WebSocket(`${protocol}//${window.location.host}/ws/mesh`);
+            
+            ws.onopen = () => {
+                console.log('WebSocket connected');
+                document.getElementById('connectionDot').classList.remove('disconnected');
+                document.getElementById('connectionText').textContent = 'Connected';
+                if (reconnectInterval) {
+                    clearInterval(reconnectInterval);
+                    reconnectInterval = null;
+                }
+            };
+            
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                if (data.type === 'mesh_update') {
+                    servicesData = data.services;
+                    topologyData = data.topology;
+                    recommendationsData = data.recommendations || [];
+                    updateDashboard();
+                }
+            };
+            
+            ws.onclose = () => {
+                console.log('WebSocket disconnected');
+                document.getElementById('connectionDot').classList.add('disconnected');
+                document.getElementById('connectionText').textContent = 'Disconnected';
+                
+                if (!reconnectInterval) {
+                    reconnectInterval = setInterval(() => {
+                        console.log('Attempting to reconnect...');
+                        connectWebSocket();
+                    }, 5000);
+                }
+            };
+            
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+            };
+        }
+        
+        // Update Dashboard
+        function updateDashboard() {
+            updateHeaderStats();
+            renderServices();
+            renderRecommendations();
+            renderTopology();
+        }
+        
+        // Update Header Statistics
+        function updateHeaderStats() {
+            const services = Object.values(servicesData);
+            const healthy = services.filter(s => s.status === 'healthy').length;
+            const avgScore = services
+                .filter(s => s.health_score)
+                .reduce((sum, s) => sum + s.health_score.overall, 0) / services.length || 0;
+            
+            document.getElementById('healthyServices').textContent = healthy;
+            document.getElementById('overallScore').textContent = Math.round(avgScore);
+        }
+        
+        // Render Service Cards
+        function renderServices() {
+            const grid = document.getElementById('servicesGrid');
+            grid.innerHTML = '';
+            
+            for (const [serviceId, service] of Object.entries(servicesData)) {
+                const card = createServiceCard(serviceId, service);
+                grid.appendChild(card);
+            }
+        }
+        
+        // Create Service Card
+        function createServiceCard(serviceId, service) {
+            const card = document.createElement('div');
+            card.className = `service-card ${service.status}`;
+            card.setAttribute('data-category', service.category || 'application');
+            
+            const healthScore = service.health_score || {};
+            const metrics = service.metrics || {};
+            
+            card.innerHTML = `
+                <div class="service-header">
+                    <div class="service-icon">${getServiceIcon(serviceId)}</div>
+                    <div class="service-info">
+                        <div class="service-name">${service.service}</div>
+                        <div class="service-desc">${getServiceDescription(serviceId)}</div>
+                    </div>
+                    <div class="status-badge ${service.status}">${service.status}</div>
+                </div>
+                
+                ${healthScore.overall ? `
+                <div class="health-score-container">
+                    <div class="score-row">
+                        <span class="score-label">Overall</span>
+                        <div class="score-bar-container">
+                            <div class="score-bar" style="width: ${healthScore.overall}%"></div>
+                        </div>
+                        <span class="score-value">${Math.round(healthScore.overall)}</span>
+                    </div>
+                    <div class="score-row">
+                        <span class="score-label">Performance</span>
+                        <div class="score-bar-container">
+                            <div class="score-bar" style="width: ${healthScore.performance}%"></div>
+                        </div>
+                        <span class="score-value">${Math.round(healthScore.performance)}</span>
+                    </div>
+                    <div class="score-row">
+                        <span class="score-label">Reliability</span>
+                        <div class="score-bar-container">
+                            <div class="score-bar" style="width: ${healthScore.reliability}%"></div>
+                        </div>
+                        <span class="score-value">${Math.round(healthScore.reliability)}</span>
+                    </div>
+                </div>
+                ` : ''}
+                
+                ${metrics.cpu_percent ? `
+                <div class="metrics-grid">
+                    <div class="metric-item">
+                        <div class="metric-value">${Math.round(metrics.cpu_percent)}%</div>
+                        <div class="metric-label">CPU</div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="metric-value">${Math.round(metrics.memory_percent)}%</div>
+                        <div class="metric-label">Memory</div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="metric-value">${Math.round(metrics.p95_latency)}ms</div>
+                        <div class="metric-label">Latency</div>
+                    </div>
+                </div>
+                ` : ''}
+                
+                <div class="service-actions">
+                    <button class="action-btn" onclick="openDocs('${serviceId}')">📚 API Docs</button>
+                    <button class="action-btn" onclick="viewLogs('${serviceId}')">📋 Logs</button>
+                    <button class="action-btn" onclick="viewMetrics('${serviceId}')">📊 Metrics</button>
+                </div>
+            `;
+            
+            return card;
+        }
+        
+        // Render AI Recommendations
+        function renderRecommendations() {
+            const container = document.getElementById('recommendationsContainer');
+            
+            if (!recommendationsData || recommendationsData.length === 0) {
+                container.innerHTML = '<p style="text-align: center; opacity: 0.7;">No recommendations at this time</p>';
+                return;
+            }
+            
+            container.innerHTML = '';
+            recommendationsData.forEach(rec => {
+                const card = document.createElement('div');
+                card.className = `recommendation-card ${rec.priority}`;
+                card.innerHTML = `
+                    <div class="rec-header">
+                        <div class="rec-title">${rec.title}</div>
+                        <span class="rec-badge" style="background: ${getBadgeColor(rec.priority)}">${rec.priority}</span>
+                    </div>
+                    <div class="rec-description">${rec.description}</div>
+                    <div class="rec-metrics">
+                        <div class="rec-metric">
+                            <span>💪</span>
+                            <span>Impact: ${rec.impact_score}/10</span>
+                        </div>
+                        <div class="rec-metric">
+                            <span>🔧</span>
+                            <span>Effort: ${rec.effort_score}/10</span>
+                        </div>
+                        <div class="rec-metric">
+                            <span>🎯</span>
+                            <span>Confidence: ${Math.round(rec.confidence * 100)}%</span>
+                        </div>
+                    </div>
+                `;
+                card.onclick = () => showRecommendationDetails(rec);
+                container.appendChild(card);
+            });
+        }
+        
+        // Render 3D Topology
+        function renderTopology() {
+            const canvas = document.getElementById('topology-canvas');
+            if (!topologyData) return;
+            
+            // Simplified 2D visualization for now
+            canvas.innerHTML = '<canvas style="width: 100%; height: 100%;"></canvas>';
+            
+            // In production, this would use Three.js for 3D rendering
+            // For now, showing a placeholder
+            const ctx = canvas.querySelector('canvas').getContext('2d');
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+            ctx.fillRect(0, 0, canvas.offsetWidth, canvas.offsetHeight);
+            ctx.fillStyle = '#fff';
+            ctx.font = '16px Inter';
+            ctx.textAlign = 'center';
+            ctx.fillText('3D Topology Visualization', canvas.offsetWidth / 2, canvas.offsetHeight / 2);
+            ctx.font = '14px Inter';
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+            ctx.fillText(`${topologyData.nodes.length} services, ${topologyData.edges.length} dependencies`, canvas.offsetWidth / 2, canvas.offsetHeight / 2 + 30);
+        }
+        
+        // NLP Query Processing
+        async function processNLPQuery() {
+            const input = document.getElementById('nlpInput');
+            const query = input.value.trim();
+            if (!query) return;
+            
+            const btn = document.getElementById('queryBtnText');
+            btn.innerHTML = '<div class="loading"></div>';
+            
+            try {
+                const response = await fetch('/api/v1/nlp/query', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query })
+                });
+                
+                const data = await response.json();
+                displayNLPResponse(data);
+            } catch (error) {
+                console.error('NLP query error:', error);
+            } finally {
+                btn.textContent = 'Ask AI';
+            }
+        }
+        
+        // Display NLP Response
+        function displayNLPResponse(data) {
+            const container = document.getElementById('nlpResponse');
+            container.innerHTML = `
+                <div style="margin-bottom: 15px;">
+                    <strong>🎯 Intent:</strong> ${data.intent}<br>
+                    <strong>🎲 Confidence:</strong> ${Math.round(data.confidence * 100)}%
+                </div>
+                <div style="background: rgba(255, 255, 255, 0.1); padding: 15px; border-radius: 10px; margin-bottom: 15px;">
+                    ${data.answer}
+                </div>
+                ${data.suggested_actions && data.suggested_actions.length > 0 ? `
+                <div>
+                    <strong>Suggested Actions:</strong><br>
+                    ${data.suggested_actions.map(action => `<button class="action-btn" style="margin-top: 10px;">${action}</button>`).join('')}
+                </div>
+                ` : ''}
+            `;
+            container.classList.add('active');
+        }
+        
+        // Helper Functions
+        function getServiceIcon(serviceId) {
+            const icons = {
+                'discovery': '🔍',
+                'factory-reset': '🧹',
+                'reinstallation': '📦',
+                'optimization': '⚡',
+                'terminal-config': '🖥️',
+                'metrics-collector': '📊',
+                'postgres': '🐘',
+                'redis': '⚡',
+                'rabbitmq': '🐰',
+                'prometheus': '🔥',
+                'grafana': '📈',
+                'loki': '📝'
+            };
+            return icons[serviceId] || '🔧';
+        }
+        
+        function getServiceDescription(serviceId) {
+            const descriptions = {
+                'discovery': 'System scanning and hardware/software discovery',
+                'factory-reset': 'System cleanup and factory reset operations',
+                'reinstallation': 'Package management and application installation',
+                'optimization': 'System performance optimization and tuning',
+                'terminal-config': 'Terminal configuration and shell customization',
+                'metrics-collector': 'Real-time metrics collection and monitoring',
+                'postgres': 'Primary relational database',
+                'redis': 'In-memory cache and session store',
+                'rabbitmq': 'Message queue and event bus',
+                'prometheus': 'Metrics collection and alerting',
+                'grafana': 'Metrics visualization and dashboards',
+                'loki': 'Log aggregation and analysis'
+            };
+            return descriptions[serviceId] || 'Microservice';
+        }
+        
+        function getBadgeColor(priority) {
+            const colors = {
+                'critical': 'var(--danger)',
+                'high': 'var(--warning)',
+                'medium': 'var(--info)',
+                'low': 'var(--success)'
+            };
+            return colors[priority] || 'var(--info)';
+        }
+        
+        function openDocs(serviceId) {
+            const service = servicesData[serviceId];
+            if (service) {
+                const port = service.service === 'discovery' ? 8001 :
+                           service.service === 'factory-reset' ? 8002 :
+                           service.service === 'reinstallation' ? 8003 :
+                           service.service === 'optimization' ? 8004 :
+                           service.service === 'terminal-config' ? 8005 :
+                           service.service === 'metrics-collector' ? 8006 : 8000;
+                window.open(`http://localhost:${port}/docs`, '_blank');
+            }
+        }
+        
+        function viewLogs(serviceId) {
+            alert(`View logs for ${serviceId} (Feature coming soon)`);
+        }
+        
+        function viewMetrics(serviceId) {
+            alert(`View detailed metrics for ${serviceId} (Feature coming soon)`);
+        }
+        
+        function filterServices(category) {
+            const cards = document.querySelectorAll('.service-card');
+            const buttons = document.querySelectorAll('.filter-btn');
+            
+            buttons.forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            cards.forEach(card => {
+                if (category === 'all' || card.getAttribute('data-category') === category) {
+                    card.style.display = 'block';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+        }
+        
+        function setTopologyView(view) {
+            const buttons = document.querySelectorAll('.topology-panel .toggle-btn');
+            buttons.forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            // Topology view switching logic would go here
+        }
+        
+        function showRecommendationDetails(rec) {
+            alert(`Recommendation Details:\n\n${rec.title}\n\n${rec.description}\n\nActions:\n${rec.action_items.join('\n')}`);
+        }
+        
+        // Animated Background Particles
+        function initParticles() {
+            const canvas = document.getElementById('particles');
+            const ctx = canvas.getContext('2d');
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            
+            const particles = [];
+            const particleCount = 100;
+            
+            for (let i = 0; i < particleCount; i++) {
+                particles.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height,
+                    vx: (Math.random() - 0.5) * 0.5,
+                    vy: (Math.random() - 0.5) * 0.5,
+                    size: Math.random() * 2 + 1
+                });
+            }
+            
+            function animate() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+                
+                particles.forEach(p => {
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    
+                    if (p.x < 0 || p.x > canvas.width) p.vx *= -1;
+                    if (p.y < 0 || p.y > canvas.height) p.vy *= -1;
+                    
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+                
+                requestAnimationFrame(animate);
+            }
+            
+            animate();
+        }
+        
+        // Initialize
+        window.addEventListener('load', () => {
+            initParticles();
+            connectWebSocket();
+            
+            // Handle Enter key in NLP input
+            document.getElementById('nlpInput').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') processNLPQuery();
+            });
+        });
+        
+        window.addEventListener('resize', () => {
+            const canvas = document.getElementById('particles');
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        });
+    </script>
+</body>
+</html>

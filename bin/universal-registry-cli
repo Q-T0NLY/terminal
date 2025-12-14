@@ -1,0 +1,1251 @@
+#!/usr/bin/env bash
+#
+# Universal Hyper Registry - Complete Platform CLI
+# Full control over plugins, microservices, streams, webhooks, and all features
+# Version: ∞.10
+#
+
+set -euo pipefail
+
+# Configuration
+REGISTRY_API="${UNIVERSAL_REGISTRY_API:-http://localhost:8080/api/v1}"
+REGISTRY_DB="${UNIVERSAL_REGISTRY_DB:-/var/lib/ose/plugins/registry.db}"
+CLI_VERSION="∞.10"
+
+# Colors
+readonly RED='\033[0;31m'
+readonly GREEN='\033[0;32m'
+readonly YELLOW='\033[1;33m'
+readonly BLUE='\033[0;34m'
+readonly PURPLE='\033[0;35m'
+readonly CYAN='\033[0;36m'
+readonly WHITE='\033[1;37m'
+readonly NC='\033[0m'
+
+# Icons
+readonly ICON_SUCCESS="✓"
+readonly ICON_ERROR="✗"
+readonly ICON_WARNING="⚠"
+readonly ICON_INFO="ℹ"
+readonly ICON_ROCKET="��"
+readonly ICON_SEARCH="🔍"
+readonly ICON_PLUGIN="🔌"
+readonly ICON_GEAR="⚙️"
+
+print_success() { echo -e "${GREEN}${ICON_SUCCESS}${NC} $1"; }
+print_error() { echo -e "${RED}${ICON_ERROR}${NC} $1" >&2; }
+print_warning() { echo -e "${YELLOW}${ICON_WARNING}${NC} $1"; }
+print_info() { echo -e "${CYAN}${ICON_INFO}${NC} $1"; }
+
+print_header() {
+    echo -e "\n${WHITE}═══════════════════════════════════════════════════════════${NC}"
+    echo -e "${CYAN}$1${NC}"
+    echo -e "${WHITE}═══════════════════════════════════════════════════════════${NC}\n"
+}
+
+check_registry() {
+    if ! curl -s "${REGISTRY_API%/api/v1}/health" > /dev/null 2>&1; then
+        print_error "Cannot connect to Universal Registry"
+        print_info "Start with: python3 /workspaces/terminal/modules/universal-registry/hyper_registry.py"
+        return 1
+    fi
+    return 0
+}
+
+# ==================== PLUGIN MANAGEMENT ====================
+
+cmd_plugin() {
+    case "${1:-list}" in
+        list|ls)
+            print_header "${ICON_PLUGIN} Registered Plugins"
+            check_registry || return 1
+            
+            curl -s "${REGISTRY_API}/entities?type=plugin" | python3 -c "
+import sys, json
+try:
+    data = json.load(sys.stdin)
+    if not data:
+        print('  No plugins registered yet')
+    else:
+        print(f'{\"ID\":<30} {\"Name\":<35} {\"Version\":<10} {\"Status\":<12} {\"Feature\"}')
+        print('-' * 115)
+        for p in data:
+            icon = '✓' if p.get('status') == 'active' else '○'
+            feat = p.get('metadata', {}).get('feature', 'N/A')
+            print(f'{icon} {p[\"id\"]:<29} {p[\"name\"]:<35} {p.get(\"version\", \"N/A\"):<10} {p.get(\"status\", \"N/A\"):<12} {feat}')
+except Exception as e:
+    print(f'Error: {e}')
+"
+            ;;
+        register|add)
+            print_header "Register New Plugin"
+            read -p "  Plugin Name: " pname
+            read -p "  Version: " pver
+            read -p "  Feature (ai-ml/web3/cloud/data/devops/security): " pfeat
+            read -p "  Description: " pdesc
+            read -p "  Author: " pauthor
+            
+            curl -s -X POST "${REGISTRY_API}/entities" \
+                -H "Content-Type: application/json" \
+                -d "{\"type\":\"plugin\",\"name\":\"$pname\",\"version\":\"$pver\",\"metadata\":{\"feature\":\"$pfeat\",\"description\":\"$pdesc\",\"author\":\"$pauthor\"}}" | python3 -m json.tool
+            print_success "Plugin registered"
+            ;;
+        install)
+            [ -z "${2:-}" ] && { print_error "Plugin ID required"; exit 1; }
+            print_info "Installing plugin: $2"
+            curl -s -X POST "${REGISTRY_API}/plugins/$2/install" | python3 -m json.tool
+            ;;
+        activate|enable|start)
+            [ -z "${2:-}" ] && { print_error "Plugin ID required"; exit 1; }
+            print_info "Activating plugin: $2"
+            curl -s -X POST "${REGISTRY_API}/plugins/$2/activate" | python3 -m json.tool
+            ;;
+        deactivate|disable|stop)
+            [ -z "${2:-}" ] && { print_error "Plugin ID required"; exit 1; }
+            print_warning "Deactivating plugin: $2"
+            curl -s -X POST "${REGISTRY_API}/plugins/$2/deactivate" | python3 -m json.tool
+            ;;
+        uninstall|remove|delete)
+            [ -z "${2:-}" ] && { print_error "Plugin ID required"; exit 1; }
+            read -p "Are you sure? (yes/no): " confirm
+            [[ "$confirm" != "yes" ]] && { print_info "Cancelled"; exit 0; }
+            print_warning "Uninstalling plugin: $2"
+            curl -s -X DELETE "${REGISTRY_API}/plugins/$2" | python3 -m json.tool
+            ;;
+        info|show|get)
+            [ -z "${2:-}" ] && { print_error "Plugin ID required"; exit 1; }
+            print_header "Plugin Details: $2"
+            curl -s "${REGISTRY_API}/entities/$2" | python3 -m json.tool
+            ;;
+        update)
+            [ -z "${2:-}" ] && { print_error "Plugin ID required"; exit 1; }
+            print_info "Updating plugin: $2"
+            curl -s -X PUT "${REGISTRY_API}/plugins/$2/update" | python3 -m json.tool
+            ;;
+        health|status)
+            [ -z "${2:-}" ] && { print_error "Plugin ID required"; exit 1; }
+            curl -s "${REGISTRY_API}/plugins/$2/health" | python3 -m json.tool
+            ;;
+        logs)
+            [ -z "${2:-}" ] && { print_error "Plugin ID required"; exit 1; }
+            print_header "Plugin Logs: $2"
+            curl -s "${REGISTRY_API}/plugins/$2/logs" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+for log in data.get('logs', []):
+    print(f'[{log[\"timestamp\"]}] {log[\"level\"]}: {log[\"message\"]}')
+"
+            ;;
+        *)
+            echo "Plugin actions: list|register|install|activate|deactivate|uninstall|info|update|health|logs"
+            exit 1
+            ;;
+    esac
+}
+
+# ==================== MICROSERVICES MANAGEMENT ====================
+
+cmd_service() {
+    case "${1:-list}" in
+        list|ls)
+            print_header "${ICON_ROCKET} Microservices"
+            check_registry || return 1
+            
+            curl -s "${REGISTRY_API}/services" | python3 -c "
+import sys, json
+try:
+    data = json.load(sys.stdin)
+    services = data.get('services', [])
+    if not services:
+        print('  No microservices registered')
+    else:
+        print(f'{\"ID\":<25} {\"Name\":<30} {\"Type\":<12} {\"Status\":<12} {\"Replicas\"}')
+        print('-' * 95)
+        for svc in services:
+            status = svc.get('status', 'unknown')
+            icon = '✓' if status == 'running' else '○'
+            print(f'{icon} {svc.get(\"id\", \"N/A\"):<24} {svc.get(\"name\", \"N/A\"):<30} {svc.get(\"type\", \"N/A\"):<12} {status:<12} {svc.get(\"replicas\", 0)}')
+except Exception as e:
+    print(f'Error: {e}')
+"
+            ;;
+        create|add)
+            print_header "Create Microservice"
+            read -p "  Service Name: " sname
+            read -p "  Type (api/worker/processor/gateway/mesh/database/cache/queue): " stype
+            read -p "  Version: " sver
+            read -p "  Port: " sport
+            read -p "  Replicas: " srep
+            
+            curl -s -X POST "${REGISTRY_API}/services" \
+                -H "Content-Type: application/json" \
+                -d "{\"name\":\"$sname\",\"type\":\"$stype\",\"version\":\"$sver\",\"port\":${sport:-8080},\"replicas\":${srep:-1}}" | python3 -m json.tool
+            print_success "Service created"
+            ;;
+        install)
+            [ -z "${2:-}" ] && { print_error "Service ID required"; exit 1; }
+            print_info "Installing service: $2"
+            curl -s -X POST "${REGISTRY_API}/services/$2/install" | python3 -m json.tool
+            ;;
+        start)
+            [ -z "${2:-}" ] && { print_error "Service ID required"; exit 1; }
+            print_info "Starting service: $2"
+            curl -s -X POST "${REGISTRY_API}/services/$2/start" | python3 -m json.tool
+            ;;
+        stop)
+            [ -z "${2:-}" ] && { print_error "Service ID required"; exit 1; }
+            print_warning "Stopping service: $2"
+            curl -s -X POST "${REGISTRY_API}/services/$2/stop" | python3 -m json.tool
+            ;;
+        restart)
+            [ -z "${2:-}" ] && { print_error "Service ID required"; exit 1; }
+            print_info "Restarting service: $2"
+            curl -s -X POST "${REGISTRY_API}/services/$2/restart" | python3 -m json.tool
+            ;;
+        remove|delete)
+            [ -z "${2:-}" ] && { print_error "Service ID required"; exit 1; }
+            read -p "Are you sure? (yes/no): " confirm
+            [[ "$confirm" != "yes" ]] && { print_info "Cancelled"; exit 0; }
+            curl -s -X DELETE "${REGISTRY_API}/services/$2" | python3 -m json.tool
+            ;;
+        import)
+            print_info "Importing services from JSON..."
+            read -p "  File path: " fpath
+            curl -s -X POST "${REGISTRY_API}/services/import" \
+                -H "Content-Type: application/json" \
+                -d "@$fpath" | python3 -m json.tool
+            ;;
+        export)
+            print_info "Exporting services to JSON..."
+            curl -s "${REGISTRY_API}/services/export" > services_export.json
+            print_success "Exported to services_export.json"
+            ;;
+        stats)
+            curl -s "${REGISTRY_API}/services/stats/overview" | python3 -m json.tool
+            ;;
+        logs)
+            [ -z "${2:-}" ] && { print_error "Service ID required"; exit 1; }
+            print_header "Service Logs: $2"
+            curl -s "${REGISTRY_API}/services/$2/logs?lines=${3:-100}" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+for log in data.get('logs', []):
+    print(f'[{log[\"timestamp\"]}] {log[\"level\"]}: {log[\"message\"]}')
+"
+            ;;
+        health|status)
+            [ -z "${2:-}" ] && { print_error "Service ID required"; exit 1; }
+            curl -s "${REGISTRY_API}/services/$2/health" | python3 -m json.tool
+            ;;
+        metrics)
+            [ -z "${2:-}" ] && { print_error "Service ID required"; exit 1; }
+            curl -s "${REGISTRY_API}/services/$2/metrics" | python3 -m json.tool
+            ;;
+        config)
+            [ -z "${2:-}" ] && { print_error "Service ID required"; exit 1; }
+            print_info "Configuring service: $2"
+            read -p "  Environment Variables (JSON): " envvars
+            curl -s -X PUT "${REGISTRY_API}/services/$2/config" \
+                -H "Content-Type: application/json" \
+                -d "{\"environment\":$envvars}" | python3 -m json.tool
+            ;;
+        *)
+            echo "Service actions: list|create|install|start|stop|restart|remove|logs|health|metrics|config|import|export|stats"
+            ;;
+    esac
+}
+
+# ==================== COMPUTE ENGINE MANAGEMENT ====================
+
+cmd_engine() {
+    case "${1:-list}" in
+        list|ls)
+            print_header "⚡ Compute Engines"
+            check_registry || return 1
+            
+            curl -s "${REGISTRY_API}/engines" | python3 -c "
+import sys, json
+try:
+    data = json.load(sys.stdin)
+    engines = data.get('engines', [])
+    if not engines:
+        print('  No compute engines registered')
+    else:
+        print(f'{\"ID\":<25} {\"Name\":<25} {\"Type\":<15} {\"Capacity\":<10} {\"GPU\":<5} {\"Status\"}')
+        print('-' * 105)
+        for eng in engines:
+            gpu = '✓' if eng.get('gpu_enabled') else '○'
+            print(f'{eng.get(\"id\", \"N/A\"):<25} {eng.get(\"name\", \"N/A\"):<25} {eng.get(\"type\", \"N/A\"):<15} {eng.get(\"capacity\", 0):<10} {gpu:<5} {eng.get(\"status\", \"unknown\")}')
+except Exception as e:
+    print(f'Error: {e}')
+"
+            ;;
+        create|add)
+            print_header "Create Compute Engine"
+            read -p "  Engine Name: " ename
+            read -p "  Type (processing/analytics/ai_ml/compute/storage/stream/batch): " etype
+            read -p "  Capacity: " ecap
+            read -p "  GPU Enabled (y/n): " egpu
+            read -p "  GPU Count: " egpucount
+            
+            curl -s -X POST "${REGISTRY_API}/engines" \
+                -H "Content-Type: application/json" \
+                -d "{\"name\":\"$ename\",\"type\":\"$etype\",\"capacity\":${ecap:-10},\"gpu_enabled\":$([ \"$egpu\" = \"y\" ] && echo true || echo false),\"gpu_count\":${egpucount:-0}}" | python3 -m json.tool
+            print_success "Engine created"
+            ;;
+        scale)
+            [ -z "${2:-}" ] && { print_error "Engine ID required"; exit 1; }
+            read -p "  New Capacity: " ncap
+            curl -s -X POST "${REGISTRY_API}/engines/$2/scale" \
+                -H "Content-Type: application/json" \
+                -d "{\"capacity\":${ncap}}" | python3 -m json.tool
+            ;;
+        submit)
+            [ -z "${2:-}" ] && { print_error "Engine ID required"; exit 1; }
+            read -p "  Task Name: " tname
+            read -p "  Priority (low/medium/high): " tpri
+            curl -s -X POST "${REGISTRY_API}/engines/$2/submit" \
+                -H "Content-Type: application/json" \
+                -d "{\"name\":\"$tname\",\"priority\":\"${tpri:-medium}\"}" | python3 -m json.tool
+            ;;
+        workloads)
+            [ -z "${2:-}" ] && { print_error "Engine ID required"; exit 1; }
+            curl -s "${REGISTRY_API}/engines/$2/workloads" | python3 -m json.tool
+            ;;
+        metrics)
+            [ -z "${2:-}" ] && { print_error "Engine ID required"; exit 1; }
+            curl -s "${REGISTRY_API}/engines/$2/metrics" | python3 -m json.tool
+            ;;
+        stats)
+            curl -s "${REGISTRY_API}/engines/stats/overview" | python3 -m json.tool
+            ;;
+        *)
+            echo "Engine actions: list|create|scale|submit|workloads|metrics|stats"
+            ;;
+    esac
+}
+
+# ==================== COMPONENT MANAGEMENT ====================
+
+cmd_component() {
+    case "${1:-list}" in
+        list|ls)
+            print_header "🔧 Infrastructure Components"
+            check_registry || return 1
+            
+            curl -s "${REGISTRY_API}/components" | python3 -c "
+import sys, json
+try:
+    data = json.load(sys.stdin)
+    components = data.get('components', [])
+    if not components:
+        print('  No components registered')
+    else:
+        print(f'{\"ID\":<25} {\"Name\":<25} {\"Type\":<15} {\"Provider\":<15} {\"Status\"}')
+        print('-' * 100)
+        for comp in components:
+            icon = '✓' if comp.get('status') == 'enabled' else '○'
+            print(f'{icon} {comp.get(\"id\", \"N/A\"):<24} {comp.get(\"name\", \"N/A\"):<25} {comp.get(\"type\", \"N/A\"):<15} {comp.get(\"provider\", \"N/A\"):<15} {comp.get(\"status\", \"unknown\")}')
+except Exception as e:
+    print(f'Error: {e}')
+"
+            ;;
+        add)
+            print_header "Add Infrastructure Component"
+            read -p "  Component Name: " cname
+            read -p "  Type (cache/database/queue/storage/proxy/loadbalancer/gateway): " ctype
+            read -p "  Provider (redis/postgresql/mongodb/kafka/s3/nginx/etc): " cprov
+            read -p "  Endpoint: " cend
+            read -p "  Port: " cport
+            
+            curl -s -X POST "${REGISTRY_API}/components" \
+                -H "Content-Type: application/json" \
+                -d "{\"name\":\"$cname\",\"type\":\"$ctype\",\"provider\":\"$cprov\",\"endpoint\":\"$cend\",\"port\":${cport:-0}}" | python3 -m json.tool
+            print_success "Component added"
+            ;;
+        enable)
+            [ -z "${2:-}" ] && { print_error "Component ID required"; exit 1; }
+            curl -s -X POST "${REGISTRY_API}/components/$2/enable" | python3 -m json.tool
+            ;;
+        disable)
+            [ -z "${2:-}" ] && { print_error "Component ID required"; exit 1; }
+            curl -s -X POST "${REGISTRY_API}/components/$2/disable" | python3 -m json.tool
+            ;;
+        health)
+            [ -z "${2:-}" ] && { print_error "Component ID required"; exit 1; }
+            curl -s "${REGISTRY_API}/components/$2/health" | python3 -m json.tool
+            ;;
+        stats)
+            curl -s "${REGISTRY_API}/components/stats/overview" | python3 -m json.tool
+            ;;
+        *)
+            echo "Component actions: list|add|enable|disable|health|stats"
+            ;;
+    esac
+}
+
+# ==================== SUB-REGISTRY MANAGEMENT ====================
+
+cmd_registry() {
+    case "${1:-list}" in
+        list|ls)
+            print_header "📚 Sub-Registries"
+            check_registry || return 1
+            
+            curl -s "${REGISTRY_API}/registries" | python3 -c "
+import sys, json
+try:
+    data = json.load(sys.stdin)
+    registries = data.get('registries', [])
+    if not registries:
+        print('  No sub-registries found')
+    else:
+        print(f'{\"ID\":<25} {\"Name\":<30} {\"Type\":<15} {\"Status\":<12} {\"Parent\"}')
+        print('-' * 105)
+        for reg in registries:
+            icon = '✓' if reg.get('status') == 'active' else '○'
+            print(f'{icon} {reg.get(\"id\", \"N/A\"):<24} {reg.get(\"name\", \"N/A\"):<30} {reg.get(\"type\", \"N/A\"):<15} {reg.get(\"status\", \"unknown\"):<12} {reg.get(\"parent_id\", \"root\")[:20]}')
+except Exception as e:
+    print(f'Error: {e}')
+"
+            ;;
+        create)
+            print_header "Create Sub-Registry"
+            read -p "  Registry Name: " rname
+            read -p "  Type (root/domain/project/environment/tenant): " rtype
+            read -p "  Parent ID (leave empty for root): " rparent
+            read -p "  Domain: " rdomain
+            
+            curl -s -X POST "${REGISTRY_API}/registries" \
+                -H "Content-Type: application/json" \
+                -d "{\"name\":\"$rname\",\"type\":\"$rtype\",\"parent_id\":\"$rparent\",\"domain\":\"$rdomain\"}" | python3 -m json.tool
+            print_success "Registry created"
+            ;;
+        sync)
+            [ -z "${2:-}" ] && { print_error "Registry ID required"; exit 1; }
+            print_info "Synchronizing registry: $2"
+            curl -s -X POST "${REGISTRY_API}/registries/$2/sync" | python3 -m json.tool
+            ;;
+        hierarchy)
+            [ -z "${2:-}" ] && { print_error "Registry ID required"; exit 1; }
+            curl -s "${REGISTRY_API}/registries/$2/hierarchy" | python3 -m json.tool
+            ;;
+        stats)
+            curl -s "${REGISTRY_API}/registries/stats/overview" | python3 -m json.tool
+            ;;
+        *)
+            echo "Registry actions: list|create|sync|hierarchy|stats"
+            ;;
+    esac
+}
+
+# ==================== FEATURE FLAGS MANAGEMENT ====================
+
+cmd_feature_flag() {
+    case "${1:-list}" in
+        list|ls)
+            print_header "🚩 Feature Flags"
+            check_registry || return 1
+            
+            curl -s "${REGISTRY_API}/features" | python3 -c "
+import sys, json
+try:
+    data = json.load(sys.stdin)
+    features = data.get('features', [])
+    if not features:
+        print('  No feature flags defined')
+    else:
+        print(f'{\"ID\":<25} {\"Name\":<30} {\"Enabled\":<10} {\"Rollout %\":<12} {\"Status\"}')
+        print('-' * 100)
+        for feat in features:
+            icon = '✓' if feat.get('enabled') else '○'
+            print(f'{icon} {feat.get(\"id\", \"N/A\"):<24} {feat.get(\"name\", \"N/A\"):<30} {str(feat.get(\"enabled\", False)):<10} {feat.get(\"rollout_percentage\", 0):<12} {feat.get(\"status\", \"unknown\")}')
+except Exception as e:
+    print(f'Error: {e}')
+"
+            ;;
+        create)
+            print_header "Create Feature Flag"
+            read -p "  Feature Name: " fname
+            read -p "  Description: " fdesc
+            read -p "  Enabled (y/n): " fenabled
+            read -p "  Rollout Percentage (0-100): " fpct
+            
+            curl -s -X POST "${REGISTRY_API}/features" \
+                -H "Content-Type: application/json" \
+                -d "{\"name\":\"$fname\",\"description\":\"$fdesc\",\"enabled\":$([ \"$fenabled\" = \"y\" ] && echo true || echo false),\"rollout_percentage\":${fpct:-0}}" | python3 -m json.tool
+            print_success "Feature flag created"
+            ;;
+        enable)
+            [ -z "${2:-}" ] && { print_error "Feature ID required"; exit 1; }
+            curl -s -X POST "${REGISTRY_API}/features/$2/enable" | python3 -m json.tool
+            ;;
+        disable)
+            [ -z "${2:-}" ] && { print_error "Feature ID required"; exit 1; }
+            curl -s -X POST "${REGISTRY_API}/features/$2/disable" | python3 -m json.tool
+            ;;
+        rollout)
+            [ -z "${2:-}" ] && { print_error "Feature ID required"; exit 1; }
+            read -p "  Rollout Percentage (0-100): " pct
+            read -p "  Strategy (instant/gradual/canary/blue_green/ab_test): " strat
+            curl -s -X POST "${REGISTRY_API}/features/$2/rollout?percentage=${pct}&strategy=${strat:-gradual}" | python3 -m json.tool
+            ;;
+        evaluate)
+            [ -z "${2:-}" ] && { print_error "Feature ID required"; exit 1; }
+            read -p "  User ID: " uid
+            curl -s -X POST "${REGISTRY_API}/features/$2/evaluate" \
+                -H "Content-Type: application/json" \
+                -d "{\"user_id\":\"$uid\",\"attributes\":{}}" | python3 -m json.tool
+            ;;
+        stats)
+            curl -s "${REGISTRY_API}/features/stats/overview" | python3 -m json.tool
+            ;;
+        *)
+            echo "Feature flag actions: list|create|enable|disable|rollout|evaluate|stats"
+            ;;
+    esac
+}
+
+# ==================== DISTRIBUTED GRID MANAGEMENT ====================
+
+cmd_grid() {
+    case "${1:-list}" in
+        nodes|list|ls)
+            print_header "🌐 Distributed Grid Nodes"
+            check_registry || return 1
+            
+            curl -s "${REGISTRY_API}/grid/nodes" | python3 -c "
+import sys, json
+try:
+    data = json.load(sys.stdin)
+    nodes = data.get('nodes', [])
+    if not nodes:
+        print('  No grid nodes registered')
+    else:
+        print(f'{\"ID\":<25} {\"Name\":<25} {\"Type\":<15} {\"Region\":<15} {\"Status\"}')
+        print('-' * 100)
+        for node in nodes:
+            icon = '✓' if node.get('status') == 'active' else '○'
+            print(f'{icon} {node.get(\"id\", \"N/A\"):<24} {node.get(\"name\", \"N/A\"):<25} {node.get(\"type\", \"N/A\"):<15} {node.get(\"region\", \"default\"):<15} {node.get(\"status\", \"unknown\")}')
+except Exception as e:
+    print(f'Error: {e}')
+"
+            ;;
+        add)
+            print_header "Add Grid Node"
+            read -p "  Node Name: " nname
+            read -p "  Type (compute/storage/gateway/worker/coordinator): " ntype
+            read -p "  Host: " nhost
+            read -p "  Port: " nport
+            read -p "  Region: " nregion
+            read -p "  Zone: " nzone
+            
+            curl -s -X POST "${REGISTRY_API}/grid/nodes" \
+                -H "Content-Type: application/json" \
+                -d "{\"name\":\"$nname\",\"type\":\"$ntype\",\"host\":\"$nhost\",\"port\":${nport:-8080},\"region\":\"$nregion\",\"zone\":\"$nzone\"}" | python3 -m json.tool
+            print_success "Node added"
+            ;;
+        activate)
+            [ -z "${2:-}" ] && { print_error "Node ID required"; exit 1; }
+            curl -s -X POST "${REGISTRY_API}/grid/nodes/$2/activate" | python3 -m json.tool
+            ;;
+        deactivate)
+            [ -z "${2:-}" ] && { print_error "Node ID required"; exit 1; }
+            curl -s -X POST "${REGISTRY_API}/grid/nodes/$2/deactivate" | python3 -m json.tool
+            ;;
+        health)
+            [ -z "${2:-}" ] && { print_error "Node ID required"; exit 1; }
+            curl -s "${REGISTRY_API}/grid/nodes/$2/health" | python3 -m json.tool
+            ;;
+        balance)
+            print_info "Requesting load-balanced node..."
+            read -p "  Node Type (optional): " ntype
+            curl -s -X POST "${REGISTRY_API}/grid/balance?type=$ntype" | python3 -m json.tool
+            ;;
+        stats)
+            curl -s "${REGISTRY_API}/grid/stats/overview" | python3 -m json.tool
+            ;;
+        *)
+            echo "Grid actions: nodes|add|activate|deactivate|health|balance|stats"
+            ;;
+    esac
+}
+
+# ==================== CONFIGURATION MANAGEMENT ====================
+
+cmd_config() {
+    case "${1:-list}" in
+        list|ls)
+            print_header "⚙️ Configuration Settings"
+            check_registry || return 1
+            
+            curl -s "${REGISTRY_API}/config" | python3 -c "
+import sys, json
+try:
+    data = json.load(sys.stdin)
+    configs = data.get('configs', [])
+    if not configs:
+        print('  No configurations found')
+    else:
+        print(f'{\"Key\":<45} {\"Type\":<12} {\"Scope\":<12} {\"Value\"}')
+        print('-' * 100)
+        for cfg in configs:
+            val = str(cfg.get('value', 'N/A'))[:30]
+            print(f'{cfg.get(\"key\", \"N/A\"):<45} {cfg.get(\"type\", \"N/A\"):<12} {cfg.get(\"scope\", \"N/A\"):<12} {val}')
+except Exception as e:
+    print(f'Error: {e}')
+"
+            ;;
+        get)
+            [ -z "${2:-}" ] && { print_error "Config key required"; exit 1; }
+            curl -s "${REGISTRY_API}/config/$2" | python3 -m json.tool
+            ;;
+        set)
+            [ -z "${2:-}" ] && { print_error "Config key required"; exit 1; }
+            read -p "  Value: " cval
+            read -p "  Type (string/integer/float/boolean/json/secret): " ctype
+            read -p "  Scope (global/service/environment/user): " cscope
+            
+            curl -s -X POST "${REGISTRY_API}/config" \
+                -H "Content-Type: application/json" \
+                -d "{\"key\":\"$2\",\"value\":\"$cval\",\"type\":\"${ctype:-string}\",\"scope\":\"${cscope:-global}\"}" | python3 -m json.tool
+            ;;
+        update)
+            [ -z "${2:-}" ] && { print_error "Config key required"; exit 1; }
+            read -p "  New Value: " nval
+            curl -s -X PUT "${REGISTRY_API}/config/$2" \
+                -H "Content-Type: application/json" \
+                -d "\"$nval\"" | python3 -m json.tool
+            ;;
+        delete)
+            [ -z "${2:-}" ] && { print_error "Config key required"; exit 1; }
+            curl -s -X DELETE "${REGISTRY_API}/config/$2" | python3 -m json.tool
+            ;;
+        reset)
+            [ -z "${2:-}" ] && { print_error "Config key required"; exit 1; }
+            curl -s -X POST "${REGISTRY_API}/config/$2/reset" | python3 -m json.tool
+            ;;
+        import)
+            print_info "Importing configurations..."
+            read -p "  File path: " fpath
+            curl -s -X POST "${REGISTRY_API}/config/import" \
+                -H "Content-Type: application/json" \
+                -d "@$fpath" | python3 -m json.tool
+            ;;
+        export)
+            print_info "Exporting configurations..."
+            curl -s "${REGISTRY_API}/config/export" > config_export.json
+            print_success "Exported to config_export.json"
+            ;;
+        history)
+            [ -z "${2:-}" ] && { print_error "Config key required"; exit 1; }
+            curl -s "${REGISTRY_API}/config/$2/history" | python3 -m json.tool
+            ;;
+        stats)
+            curl -s "${REGISTRY_API}/config/stats/overview" | python3 -m json.tool
+            ;;
+        *)
+            echo "Config actions: list|get|set|update|delete|reset|import|export|history|stats"
+            ;;
+    esac
+}
+
+# ==================== SERVICE MESH MANAGEMENT ====================
+
+cmd_mesh() {
+    case "${1:-list}" in
+        routes|list|ls)
+            print_header "🕸️ Service Mesh Routes"
+            check_registry || return 1
+            
+            curl -s "${REGISTRY_API}/mesh/routes" | python3 -c "
+import sys, json
+try:
+    data = json.load(sys.stdin)
+    routes = data.get('routes', [])
+    if not routes:
+        print('  No mesh routes configured')
+    else:
+        print(f'{\"ID\":<25} {\"Name\":<25} {\"Path\":<30} {\"Type\":<10} {\"Destination\"}')
+        print('-' * 110)
+        for route in routes:
+            print(f'{route.get(\"id\", \"N/A\"):<25} {route.get(\"name\", \"N/A\"):<25} {route.get(\"path\", \"N/A\"):<30} {route.get(\"type\", \"N/A\"):<10} {route.get(\"destination\", \"N/A\")}')
+except Exception as e:
+    print(f'Error: {e}')
+"
+            ;;
+        add-route)
+            print_header "Add Mesh Route"
+            read -p "  Route Name: " rname
+            read -p "  Type (http/grpc/tcp/websocket): " rtype
+            read -p "  Path: " rpath
+            read -p "  Destination: " rdest
+            
+            curl -s -X POST "${REGISTRY_API}/mesh/routes" \
+                -H "Content-Type: application/json" \
+                -d "{\"name\":\"$rname\",\"type\":\"$rtype\",\"path\":\"$rpath\",\"destination\":\"$rdest\"}" | python3 -m json.tool
+            print_success "Route added"
+            ;;
+        load-balancer)
+            [ -z "${2:-}" ] && { print_error "Route ID required"; exit 1; }
+            read -p "  Type (round_robin/least_conn/ip_hash/weighted/random): " lbtype
+            curl -s -X PUT "${REGISTRY_API}/mesh/routes/$2/load-balancer" \
+                -H "Content-Type: application/json" \
+                -d "{\"type\":\"$lbtype\"}" | python3 -m json.tool
+            ;;
+        circuit-breaker)
+            [ -z "${2:-}" ] && { print_error "Route ID required"; exit 1; }
+            read -p "  Enable (y/n): " cbenable
+            read -p "  Failure Threshold: " cbthresh
+            curl -s -X PUT "${REGISTRY_API}/mesh/routes/$2/circuit-breaker" \
+                -H "Content-Type: application/json" \
+                -d "{\"enabled\":$([ \"$cbenable\" = \"y\" ] && echo true || echo false),\"failure_threshold\":${cbthresh:-5}}" | python3 -m json.tool
+            ;;
+        retry-policy)
+            [ -z "${2:-}" ] && { print_error "Route ID required"; exit 1; }
+            read -p "  Max Attempts: " rattempts
+            read -p "  Timeout (seconds): " rtimeout
+            curl -s -X PUT "${REGISTRY_API}/mesh/routes/$2/retry-policy" \
+                -H "Content-Type: application/json" \
+                -d "{\"max_attempts\":${rattempts:-3},\"timeout\":${rtimeout:-30}}" | python3 -m json.tool
+            ;;
+        traffic-split)
+            print_header "Configure Traffic Split (A/B Testing / Canary)"
+            read -p "  Service A: " sa
+            read -p "  Service B: " sb
+            read -p "  Percentage A (0-100): " pca
+            read -p "  Percentage B (0-100): " pcb
+            
+            curl -s -X POST "${REGISTRY_API}/mesh/traffic-split" \
+                -H "Content-Type: application/json" \
+                -d "{\"service_a\":\"$sa\",\"service_b\":\"$sb\",\"percentage_a\":${pca:-50},\"percentage_b\":${pcb:-50}}" | python3 -m json.tool
+            ;;
+        traces)
+            [ -z "${2:-}" ] && { print_error "Route ID required"; exit 1; }
+            curl -s "${REGISTRY_API}/mesh/routes/$2/traces?limit=${3:-100}" | python3 -m json.tool
+            ;;
+        metrics)
+            [ -z "${2:-}" ] && { print_error "Route ID required"; exit 1; }
+            curl -s "${REGISTRY_API}/mesh/routes/$2/metrics" | python3 -m json.tool
+            ;;
+        stats)
+            curl -s "${REGISTRY_API}/mesh/stats/overview" | python3 -m json.tool
+            ;;
+        *)
+            echo "Mesh actions: routes|add-route|load-balancer|circuit-breaker|retry-policy|traffic-split|traces|metrics|stats"
+            ;;
+    esac
+}
+
+# ==================== EVENT STREAMS ====================
+
+cmd_stream() {
+    case "${1:-list}" in
+        list|ls)
+            print_header "📡 Event Streams"
+            check_registry || return 1
+            curl -s "${REGISTRY_API}/streams/stats" | python3 -m json.tool
+            ;;
+        subscribe|sub)
+            local event_type="${2:-*}"
+            print_info "Subscribing to events: $event_type"
+            echo -e "${YELLOW}⚠${NC} Press Ctrl+C to stop\n"
+            curl -s -N "${REGISTRY_API}/streams/subscribe?event_type=$event_type" | while read line; do
+                echo -e "${GREEN}📨${NC} $line"
+            done
+            ;;
+        publish|pub)
+            print_header "Publish Event"
+            read -p "  Event Type: " etype
+            read -p "  Source: " esrc
+            read -p "  Data (JSON): " edata
+            
+            curl -s -X POST "${REGISTRY_API}/streams/publish" \
+                -H "Content-Type: application/json" \
+                -d "{\"type\":\"$etype\",\"source\":\"$esrc\",\"data\":$edata}" | python3 -m json.tool
+            ;;
+        *)
+            echo "Stream actions: list|subscribe|publish"
+            ;;
+    esac
+}
+
+# ==================== WEBHOOKS ====================
+
+cmd_webhook() {
+    case "${1:-list}" in
+        list|ls)
+            print_header "🪝 Registered Webhooks"
+            check_registry || return 1
+            curl -s "${REGISTRY_API}/webhooks" | python3 -m json.tool
+            ;;
+        add|register)
+            print_header "Register Webhook"
+            read -p "  Webhook URL: " url
+            read -p "  Events (comma-separated): " events
+            read -p "  Secret (optional): " secret
+            
+            events_json=$(echo "$events" | sed 's/,/","/g' | sed 's/^/["/;s/$/"]/')
+            curl -s -X POST "${REGISTRY_API}/webhooks" \
+                -H "Content-Type: application/json" \
+                -d "{\"url\":\"$url\",\"events\":$events_json,\"secret\":\"$secret\"}" | python3 -m json.tool
+            print_success "Webhook registered"
+            ;;
+        delete|remove)
+            [ -z "${2:-}" ] && { print_error "Webhook ID required"; exit 1; }
+            curl -s -X DELETE "${REGISTRY_API}/webhooks/$2" | python3 -m json.tool
+            ;;
+        test)
+            [ -z "${2:-}" ] && { print_error "Webhook ID required"; exit 1; }
+            print_info "Testing webhook: $2"
+            curl -s -X POST "${REGISTRY_API}/webhooks/$2/test" | python3 -m json.tool
+            ;;
+        *)
+            echo "Webhook actions: list|add|delete|test"
+            ;;
+    esac
+}
+
+# ==================== SEARCH & INDEX ====================
+
+cmd_search() {
+    local query="${1:-}"
+    [ -z "$query" ] && { print_error "Search query required"; exit 1; }
+    
+    print_header "${ICON_SEARCH} Search Results"
+    check_registry || return 1
+    
+    curl -s -X POST "${REGISTRY_API}/search" \
+        -H "Content-Type: application/json" \
+        -d "{\"query\":\"$query\"}" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+for result in data:
+    score = int(result.get('score', 0) * 100)
+    print(f'[{score}%] {result[\"name\"]} ({result[\"type\"]})')
+    if 'description' in result.get('metadata', {}):
+        print(f'      {result[\"metadata\"][\"description\"]}')
+    print()
+"
+}
+
+cmd_index() {
+    case "${1:-stats}" in
+        add)
+            print_header "Index Document"
+            read -p "  Document ID: " docid
+            read -p "  Name: " name
+            read -p "  Description: " desc
+            read -p "  Category: " cat
+            
+            curl -s -X POST "${REGISTRY_API}/search/index" \
+                -H "Content-Type: application/json" \
+                -d "{\"id\":\"$docid\",\"name\":\"$name\",\"description\":\"$desc\",\"category\":\"$cat\"}" | python3 -m json.tool
+            ;;
+        stats)
+            print_header "🔍 Search Index Statistics"
+            check_registry || return 1
+            curl -s "${REGISTRY_API}/search/stats" | python3 -m json.tool
+            ;;
+        rebuild)
+            print_warning "Rebuilding search index..."
+            curl -s -X POST "${REGISTRY_API}/search/rebuild" | python3 -m json.tool
+            ;;
+        *)
+            echo "Index actions: add|stats|rebuild"
+            ;;
+    esac
+}
+
+# ==================== FEATURES & RELATIONSHIPS ====================
+
+cmd_feature() {
+    print_header "Feature Categories"
+    check_registry || return 1
+    
+    curl -s "${REGISTRY_API}/entities?type=feature" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+if not data:
+    print('  No features found')
+else:
+    for feat in data:
+        print(f'• {feat[\"name\"]}: {feat.get(\"metadata\", {}).get(\"description\", \"\")}')
+"
+}
+
+cmd_graph() {
+    local entity_id="${1:-}"
+    local depth="${2:-3}"
+    [ -z "$entity_id" ] && { print_error "Entity ID required"; exit 1; }
+    
+    print_header "Dependency Graph: $entity_id"
+    check_registry || return 1
+    
+    curl -s "${REGISTRY_API}/graph?root_id=$entity_id&depth=$depth" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+print(f'Root: {data[\"root_id\"]} (depth: {data[\"depth\"]})')
+print(f'\nNodes: {len(data[\"nodes\"])}')
+for node in data['nodes']:
+    print(f'  • {node[\"name\"]} ({node[\"type\"]})')
+print(f'\nEdges: {len(data[\"edges\"])}')
+for edge in data['edges']:
+    print(f'  • {edge[\"source_id\"]} → {edge[\"target_id\"]} ({edge[\"type\"]})')
+"
+}
+
+# ==================== SYSTEM OPERATIONS ====================
+
+cmd_health() {
+    print_header "System Health Check"
+    check_registry || return 1
+    
+    curl -s "${REGISTRY_API%/api/v1}/health" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+print(f'Status: {data.get(\"status\", \"unknown\")}')
+print(f'Timestamp: {data.get(\"timestamp\", \"N/A\")}')
+if 'stats' in data:
+    stats = data['stats']
+    print(f'\nStatistics:')
+    print(f'  Total Entities: {stats.get(\"total_entities\", 0)}')
+    print(f'  Total Relationships: {stats.get(\"total_relationships\", 0)}')
+    print(f'  Active Connections: {stats.get(\"active_connections\", 0)}')
+"
+}
+
+cmd_stats() {
+    print_header "Registry Statistics"
+    check_registry || return 1
+    
+    curl -s "${REGISTRY_API}/stats" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+print(f'Total Entities: {data.get(\"total_entities\", 0)}')
+print(f'Total Relationships: {data.get(\"total_relationships\", 0)}')
+
+if 'by_type' in data:
+    print(f'\nBy Type:')
+    for t, count in data['by_type'].items():
+        print(f'  {t}: {count}')
+
+if 'by_status' in data:
+    print(f'\nBy Status:')
+    for s, count in data['by_status'].items():
+        print(f'  {s}: {count}')
+
+if 'by_health' in data:
+    print(f'\nBy Health:')
+    for h, count in data['by_health'].items():
+        print(f'  {h}: {count}')
+"
+}
+
+cmd_dashboard() {
+    print_info "Opening Universal Registry Dashboard..."
+    local url="http://localhost:8080"
+    
+    check_registry || return 1
+    
+    if [ -n "${BROWSER:-}" ]; then
+        "$BROWSER" "$url" 2>/dev/null &
+    elif command -v xdg-open &>/dev/null; then
+        xdg-open "$url" 2>/dev/null &
+    elif command -v open &>/dev/null; then
+        open "$url" 2>/dev/null &
+    else
+        echo ""
+        echo -e "${CYAN}${ICON_INFO}${NC} Dashboard URLs:"
+        echo ""
+        echo -e "  ${GREEN}Main Dashboard:${NC}       $url"
+        echo -e "  ${GREEN}API Documentation:${NC}    $url/docs"
+        echo -e "  ${GREEN}ReDoc:${NC}                $url/redoc"
+        echo -e "  ${GREEN}Health Check:${NC}         $url/health"
+        echo -e "  ${GREEN}Metrics:${NC}              $url/metrics"
+    fi
+}
+
+cmd_setup() {
+    print_info "Launching Intelligent Setup Wizard..."
+    if [ -f /workspaces/terminal/modules/universal-registry/core/setup/wizard.py ]; then
+        python3 /workspaces/terminal/modules/universal-registry/core/setup/wizard.py
+    else
+        print_error "Setup wizard not found"
+    fi
+}
+
+cmd_version() {
+    print_header "Universal Hyper Registry CLI $CLI_VERSION"
+    echo "API Endpoint: $REGISTRY_API"
+    echo "Database: $REGISTRY_DB"
+    
+    if check_registry 2>/dev/null; then
+        local version=$(curl -s "${REGISTRY_API%/api/v1}/" | python3 -c "import sys, json; print(json.load(sys.stdin).get('version', 'unknown'))" 2>/dev/null || echo "unknown")
+        echo "Registry Version: $version"
+        print_success "Connected to registry"
+    else
+        print_warning "Registry not reachable"
+    fi
+}
+
+cmd_help() {
+    cat << 'EOF'
+
+╔════════════════════════════════════════════════════════════╗
+║     Universal Hyper Registry - Complete CLI v∞.10         ║
+║       World-Class Platform Control Interface               ║
+╚════════════════════════════════════════════════════════════╝
+
+PLUGIN MANAGEMENT:
+  plugin list              List all registered plugins
+  plugin register          Register a new plugin
+  plugin install <id>      Install plugin
+  plugin activate <id>     Activate/enable plugin
+  plugin deactivate <id>   Deactivate/disable plugin
+  plugin uninstall <id>    Uninstall/remove plugin
+  plugin info <id>         Show plugin details
+  plugin update <id>       Update plugin
+  plugin health <id>       Check plugin health
+  plugin logs <id>         View plugin logs
+
+MICROSERVICES MANAGEMENT:
+  service list             List all microservices
+  service create           Create new microservice
+  service install <id>     Install service
+  service start <id>       Start microservice
+  service stop <id>        Stop microservice
+  service restart <id>     Restart microservice
+  service remove <id>      Remove microservice
+  service logs <id>        View service logs
+  service health <id>      Check service health
+  service metrics <id>     Get service metrics
+  service config <id>      Configure service
+  service import           Import services from JSON
+  service export           Export services to JSON
+  service stats            Show service statistics
+
+COMPUTE ENGINE MANAGEMENT:
+  engine list              List all compute engines
+  engine create            Create new compute engine
+  engine scale <id>        Scale engine capacity
+  engine submit <id>       Submit workload to engine
+  engine workloads <id>    View engine workloads
+  engine metrics <id>      Get engine metrics
+  engine stats             Show engine statistics
+
+INFRASTRUCTURE COMPONENTS:
+  component list           List all components
+  component add            Add infrastructure component
+  component enable <id>    Enable component
+  component disable <id>   Disable component
+  component health <id>    Check component health
+  component stats          Show component statistics
+
+SUB-REGISTRY MANAGEMENT:
+  registry list            List all sub-registries
+  registry create          Create sub-registry
+  registry sync <id>       Synchronize registry
+  registry hierarchy <id>  Show registry hierarchy
+  registry stats           Show registry statistics
+
+FEATURE FLAGS:
+  feature-flag list        List all feature flags
+  feature-flag create      Create feature flag
+  feature-flag enable <id> Enable feature
+  feature-flag disable <id> Disable feature
+  feature-flag rollout <id> Configure gradual rollout
+  feature-flag evaluate <id> Evaluate feature for user
+  feature-flag stats       Show feature statistics
+
+DISTRIBUTED GRID:
+  grid nodes               List all grid nodes
+  grid add                 Add grid node
+  grid activate <id>       Activate grid node
+  grid deactivate <id>     Deactivate grid node
+  grid health <id>         Check node health
+  grid balance             Get load-balanced node
+  grid stats               Show grid statistics
+
+CONFIGURATION MANAGEMENT:
+  config list              List all configurations
+  config get <key>         Get configuration value
+  config set <key>         Set configuration value
+  config update <key>      Update configuration
+  config delete <key>      Delete configuration
+  config reset <key>       Reset to default value
+  config import            Import configurations
+  config export            Export configurations
+  config history <key>     Show configuration history
+  config stats             Show configuration statistics
+
+SERVICE MESH:
+  mesh routes              List all mesh routes
+  mesh add-route           Add mesh route
+  mesh load-balancer <id>  Configure load balancer
+  mesh circuit-breaker <id> Configure circuit breaker
+  mesh retry-policy <id>   Configure retry policy
+  mesh traffic-split       Configure A/B test / canary
+  mesh traces <id>         View distributed traces
+  mesh metrics <id>        Get route metrics
+  mesh stats               Show mesh statistics
+
+EVENT STREAMS:
+  stream list              Show stream statistics
+  stream subscribe [type]  Subscribe to event streams
+  stream publish           Publish custom event
+
+WEBHOOKS:
+  webhook list             List all webhooks
+  webhook add              Register new webhook
+  webhook delete <id>      Delete webhook
+  webhook test <id>        Test webhook delivery
+
+SEARCH & DISCOVERY:
+  search <query>           Search across all entities
+  index add                Add document to search index
+  index stats              Show search index statistics
+  index rebuild            Rebuild search index
+
+DEPENDENCIES & RELATIONSHIPS:
+  graph <id> [depth]       Show dependency graph
+  feature list             List feature categories
+
+SYSTEM OPERATIONS:
+  health                   System health check
+  stats                    Show detailed statistics
+  dashboard                Open WebUI dashboard
+  setup                    Run intelligent setup wizard
+  version                  Show version information
+  help                     Show this help message
+
+EXAMPLES:
+  # Plugin management
+  universal-registry-cli plugin list
+  universal-registry-cli plugin register
+  universal-registry-cli plugin activate my-plugin
+
+  # Microservices
+  universal-registry-cli service create
+  universal-registry-cli service start my-service
+  universal-registry-cli service metrics my-service
+
+  # Compute Engines
+  universal-registry-cli engine create
+  universal-registry-cli engine scale my-engine
+  universal-registry-cli engine submit my-engine
+
+  # Feature Flags
+  universal-registry-cli feature-flag create
+  universal-registry-cli feature-flag rollout my-feature
+
+  # Service Mesh
+  universal-registry-cli mesh add-route
+  universal-registry-cli mesh circuit-breaker my-route
+  universal-registry-cli mesh traffic-split
+
+  # Configuration
+  universal-registry-cli config set my.config.key
+  universal-registry-cli config history my.config.key
+
+  # Grid
+  universal-registry-cli grid add
+  universal-registry-cli grid balance
+
+  # System
+  universal-registry-cli health
+  universal-registry-cli dashboard
+  universal-registry-cli setup
+
+ENVIRONMENT VARIABLES:
+  UNIVERSAL_REGISTRY_API    API endpoint (default: http://localhost:8080/api/v1)
+  UNIVERSAL_REGISTRY_DB     Database path
+  BROWSER                   Browser command for dashboard
+
+DOCUMENTATION:
+  API Docs:     http://localhost:8080/docs
+  Features:     /modules/universal-registry/ENTERPRISE_FEATURES.md
+
+EOF
+}
+
+# ==================== MAIN COMMAND ROUTER ====================
+
+main() {
+    local cmd="${1:-help}"
+    shift || true
+
+    case "$cmd" in
+        plugin|plugins|plg|pl)
+            cmd_plugin "$@"
+            ;;
+        service|services|svc|microservice|microservices)
+            cmd_service "$@"
+            ;;
+        engine|engines|compute)
+            cmd_engine "$@"
+            ;;
+        component|components|comp|infrastructure)
+            cmd_component "$@"
+            ;;
+        registry|registries|reg|subreg)
+            cmd_registry "$@"
+            ;;
+        feature-flag|feature-flags|flags|ff)
+            cmd_feature_flag "$@"
+            ;;
+        grid|nodes|distributed)
+            cmd_grid "$@"
+            ;;
+        config|configuration|cfg|settings)
+            cmd_config "$@"
+            ;;
+        mesh|service-mesh|sm)
+            cmd_mesh "$@"
+            ;;
+        stream|streams|event|events)
+            cmd_stream "$@"
+            ;;
+        webhook|webhooks|hook|hooks)
+            cmd_webhook "$@"
+            ;;
+        search|find)
+            cmd_search "$@"
+            ;;
+        index|idx)
+            cmd_index "$@"
+            ;;
+        feature|features|feat)
+            cmd_feature "$@"
+            ;;
+        graph|deps|dependencies)
+            cmd_graph "$@"
+            ;;
+        health|status)
+            cmd_health "$@"
+            ;;
+        stats|statistics|metrics)
+            cmd_stats "$@"
+            ;;
+        dashboard|ui|web|webui)
+            cmd_dashboard
+            ;;
+        setup|configure|wizard)
+            cmd_setup
+            ;;
+        version|v|-v|--version)
+            cmd_version
+            ;;
+        help|h|-h|--help)
+            cmd_help
+            ;;
+        *)
+            print_error "Unknown command: $cmd"
+            echo ""
+            echo "Run 'universal-registry-cli help' for usage information"
+            exit 1
+            ;;
+    esac
+}
+
+main "$@"

@@ -1,0 +1,559 @@
+#!/usr/bin/env python3
+"""
+OSE Platform - Main Interactive TUI CLI
+Comprehensive system management interface
+"""
+
+import sys
+import os
+import subprocess
+import json
+import requests
+from typing import Dict, List, Optional, Any
+from datetime import datetime
+
+try:
+    from rich.console import Console
+    from rich.panel import Panel
+    from rich.table import Table
+    from rich.layout import Layout
+    from rich.live import Live
+    from rich.prompt import Prompt, Confirm
+    from rich.text import Text
+    from rich.tree import Tree
+    from rich import box
+    from rich.progress import Progress, SpinnerColumn, TextColumn
+except ImportError:
+    print("[📦] Installing required packages...")
+    subprocess.run([sys.executable, "-m", "pip", "install", "rich", "requests", "-q"])
+    from rich.console import Console
+    from rich.panel import Panel
+    from rich.table import Table
+    from rich.prompt import Prompt, Confirm
+
+console = Console()
+
+# Configuration
+REGISTRY_API = os.getenv("UNIVERSAL_REGISTRY_API", "http://localhost:8080/api/v1")
+SERVICE_MESH_API = os.getenv("SERVICE_MESH_API", "http://localhost:8090/api/v1")
+SERVICES = {
+    "discovery": {"port": 8001, "name": "Discovery Service"},
+    "factory-reset": {"port": 8002, "name": "Factory Reset"},
+    "reinstallation": {"port": 8003, "name": "Reinstallation"},
+    "optimization": {"port": 8004, "name": "Optimization"},
+    "terminal-config": {"port": 8005, "name": "Terminal Config"},
+    "universal-registry": {"port": 8080, "name": "Universal Registry"},
+    "service-mesh": {"port": 8090, "name": "Service Mesh + AI Engines"},
+}
+
+# ==================== UTILITY FUNCTIONS ====================
+
+def check_service_health(port: int) -> Dict[str, Any]:
+    """Check if service is healthy"""
+    try:
+        response = requests.get(f"http://localhost:{port}/health", timeout=2)
+        return {
+            "status": "healthy" if response.status_code == 200 else "unhealthy",
+            "data": response.json() if response.status_code == 200 else {}
+        }
+    except:
+        return {"status": "offline", "data": {}}
+
+def get_registry_stats() -> Dict[str, Any]:
+    """Get Universal Registry statistics"""
+    try:
+        response = requests.get(f"{REGISTRY_API}/stats", timeout=2)
+        return response.json() if response.status_code == 200 else {}
+    except:
+        return {}
+
+def get_metrics_summary() -> Dict[str, Any]:
+    """Get system metrics summary"""
+    try:
+        response = requests.get(f"{REGISTRY_API}/metrics/system", timeout=2)
+        return response.json() if response.status_code == 200 else {}
+    except:
+        return {}
+
+def get_ai_status() -> Dict[str, Any]:
+    """[🧠] Get AI engine status"""
+    try:
+        response = requests.get(f"{SERVICE_MESH_API}/ai/status", timeout=2)
+        return response.json() if response.status_code == 200 else {}
+    except:
+        return {}
+
+def query_ai(query_text: str) -> Dict[str, Any]:
+    """[🔍] Query AI engines"""
+    try:
+        response = requests.post(
+            f"{SERVICE_MESH_API}/ai/query",
+            params={
+                "query": query_text,
+                "use_ensemble": True,
+                "use_nlp": True,
+                "fusion_strategy": "confidence_based"
+            },
+            timeout=30
+        )
+        return response.json() if response.status_code == 200 else {"error": "Failed"}
+    except Exception as e:
+        return {"error": str(e)}
+def get_ai_status() -> Dict[str, Any]:
+    """[🧠] Get AI engine status"""
+    try:
+        response = requests.get(f"{SERVICE_MESH_API}/ai/status", timeout=2)
+        return response.json() if response.status_code == 200 else {}
+    except:
+        return {}
+
+def query_ai(query_text: str) -> Dict[str, Any]:
+    """[🔍] Query AI engines"""
+    try:
+        response = requests.post(
+            f"{SERVICE_MESH_API}/ai/query",
+            params={
+                "query": query_text,
+                "use_ensemble": True,
+                "use_nlp": True,
+                "fusion_strategy": "confidence_based"
+            },
+            timeout=30
+        )
+        return response.json() if response.status_code == 200 else {"error": "Failed"}
+    except Exception as e:
+        return {"error": str(e)}
+# ==================== DISPLAY FUNCTIONS ====================
+
+def display_header():
+    """Display application header"""
+    header = Panel(
+        "[bold cyan]OSE PLATFORM[/bold cyan]\n"
+        "[dim]Comprehensive System Management Interface[/dim]\n"
+        f"[dim]Version ∞.9 | {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}[/dim]",
+        box=box.DOUBLE,
+        style="cyan"
+    )
+    console.print(header)
+
+def display_system_status():
+    """Display overall system status"""
+    table = Table(title="🌐 System Status", box=box.ROUNDED)
+    table.add_column("Service", style="cyan")
+    table.add_column("Port", style="yellow")
+    table.add_column("Status", style="green")
+    table.add_column("Health", style="blue")
+    
+    for service_id, info in SERVICES.items():
+        health = check_service_health(info["port"])
+        
+        status_icon = "🟢" if health["status"] == "healthy" else "🔴" if health["status"] == "offline" else "🟡"
+        status_text = health["status"].upper()
+        
+        table.add_row(
+            info["name"],
+            str(info["port"]),
+            f"{status_icon} {status_text}",
+            health["data"].get("status", "unknown") if health["status"] == "healthy" else "N/A"
+        )
+    
+    console.print(table)
+
+def display_registry_stats():
+    """Display Universal Registry statistics"""
+    stats = get_registry_stats()
+    
+    if not stats:
+        console.print("[red][⚠️] Universal Registry offline[/red]")
+        return
+    
+    table = Table(title="📊 Registry Statistics", box=box.ROUNDED)
+    table.add_column("Metric", style="cyan")
+    table.add_column("Count", style="green", justify="right")
+    
+    table.add_row("Total Entities", str(stats.get("total_entities", 0)))
+    table.add_row("Total Relationships", str(stats.get("total_relationships", 0)))
+    
+    if "by_type" in stats:
+        for entity_type, count in stats["by_type"].items():
+            table.add_row(f"  └─ {entity_type}", str(count))
+    
+    console.print(table)
+
+def display_metrics_summary():
+    """Display system metrics"""
+    metrics = get_metrics_summary()
+    
+    if not metrics:
+        console.print("[yellow][⚠️] Metrics unavailable[/yellow]")
+        return
+    
+    table = Table(title="⚡ System Metrics", box=box.ROUNDED)
+    table.add_column("Metric", style="cyan")
+    table.add_column("Value", style="green")
+    
+    if "cpu" in metrics:
+        table.add_row("CPU Usage", f"{metrics['cpu'].get('percent', 0):.1f}%")
+    
+    if "memory" in metrics:
+        mem = metrics['memory']
+        table.add_row("Memory Usage", f"{mem.get('percent', 0):.1f}%")
+        table.add_row("Memory Available", f"{mem.get('available_gb', 0):.2f} GB")
+    
+    if "disk" in metrics:
+        table.add_row("Disk Usage", f"{metrics['disk'].get('percent', 0):.1f}%")
+    
+    console.print(table)
+
+def display_main_menu():
+    """Display main interactive menu"""
+    menu = Panel(
+        "[bold white]MAIN MENU[/bold white]\n\n"
+        "[cyan]1.[/cyan] System Status & Health\n"
+        "[cyan]2.[/cyan] Universal Registry Management\n"
+        "[cyan]3.[/cyan] Plugin Management\n"
+        "[cyan]4.[/cyan] Microservices Management\n"
+        "[cyan]5.[/cyan] Metrics & Monitoring\n"
+        "[cyan]6.[/cyan] Service Mesh Configuration\n"
+        "[cyan]7.[/cyan] Event Streams\n"
+        "[cyan]8.[/cyan] Webhooks\n"
+        "[cyan]9.[/cyan] Search & Discovery\n"
+        "[cyan]10.[/cyan] System Configuration\n"
+        "[cyan]11.[/cyan] Docker Services\n"
+        "[cyan]12.[/cyan] Logs & Diagnostics\n\n"
+        "[dim]Type 'help' for command help or 'exit' to quit[/dim]",
+        box=box.DOUBLE,
+        style="cyan"
+    )
+    console.print(menu)
+
+# ==================== MENU HANDLERS ====================
+
+def handle_system_status():
+    """Handle system status view"""
+    console.clear()
+    display_header()
+    display_system_status()
+    display_metrics_summary()
+    console.print("\n[dim][👉] Press Enter to continue...[/dim]")
+    input()
+
+def handle_registry_management():
+    """Handle registry management"""
+    console.clear()
+    console.print(Panel("[bold cyan]Universal Registry Management[/bold cyan]", box=box.DOUBLE))
+    
+    submenu = (
+        "[cyan]1.[/cyan] View Registry Statistics\n"
+        "[cyan]2.[/cyan] List All Entities\n"
+        "[cyan]3.[/cyan] Create New Entity\n"
+        "[cyan]4.[/cyan] Search Entities\n"
+        "[cyan]5.[/cyan] View Relationships\n"
+        "[cyan]6.[/cyan] Back to Main Menu\n"
+    )
+    console.print(submenu)
+    
+    choice = Prompt.ask("Select option", choices=["1", "2", "3", "4", "5", "6"])
+    
+    if choice == "1":
+        display_registry_stats()
+    elif choice == "2":
+        # List entities
+        subprocess.run(["universal-registry-cli", "stats"])
+    elif choice == "6":
+        return
+    
+    console.print("\n[dim][👉] Press Enter to continue...[/dim]")
+    input()
+
+def handle_plugin_management():
+    """Handle plugin management"""
+    console.clear()
+    console.print(Panel("[bold cyan]Plugin Management[/bold cyan]", box=box.DOUBLE))
+    
+    # Call universal-registry-cli plugin list
+    subprocess.run(["universal-registry-cli", "plugin", "list"])
+    
+    submenu = (
+        "\n[cyan]1.[/cyan] List Plugins\n"
+        "[cyan]2.[/cyan] Register Plugin\n"
+        "[cyan]3.[/cyan] Install Plugin\n"
+        "[cyan]4.[/cyan] Activate Plugin\n"
+        "[cyan]5.[/cyan] Plugin Statistics\n"
+        "[cyan]6.[/cyan] Back to Main Menu\n"
+    )
+    console.print(submenu)
+    
+    choice = Prompt.ask("Select option", choices=["1", "2", "3", "4", "5", "6"])
+    
+    if choice == "1":
+        subprocess.run(["universal-registry-cli", "plugin", "list"])
+    elif choice == "2":
+        subprocess.run(["universal-registry-cli", "plugin", "register"])
+    elif choice == "6":
+        return
+    
+    console.print("\n[dim][👉] Press Enter to continue...[/dim]")
+    input()
+
+def handle_microservices():
+    """Handle microservices management"""
+    console.clear()
+    console.print(Panel("[bold cyan]Microservices Management[/bold cyan]", box=box.DOUBLE))
+    
+    subprocess.run(["universal-registry-cli", "service", "list"])
+    
+    submenu = (
+        "\n[cyan]1.[/cyan] List Services\n"
+        "[cyan]2.[/cyan] Register Service\n"
+        "[cyan]3.[/cyan] Start Service\n"
+        "[cyan]4.[/cyan] Stop Service\n"
+        "[cyan]5.[/cyan] Service Health\n"
+        "[cyan]6.[/cyan] Back to Main Menu\n"
+    )
+    console.print(submenu)
+    
+    choice = Prompt.ask("Select option", choices=["1", "2", "3", "4", "5", "6"])
+    
+    if choice == "1":
+        subprocess.run(["universal-registry-cli", "service", "list"])
+    elif choice == "6":
+        return
+    
+    console.print("\n[dim][👉] Press Enter to continue...[/dim]")
+    input()
+
+def handle_metrics():
+    """Handle metrics and monitoring"""
+    console.clear()
+    console.print(Panel("[bold cyan]Metrics & Monitoring[/bold cyan]", box=box.DOUBLE))
+    
+    display_metrics_summary()
+    
+    try:
+        response = requests.get(f"{REGISTRY_API}/metrics/plugins")
+        if response.status_code == 200:
+            data = response.json()
+            console.print(f"\n[cyan][📊] Plugin Metrics:[/cyan]")
+            console.print(json.dumps(data, indent=2))
+    except:
+        console.print("[red][❌] Could not fetch plugin metrics[/red]")
+    
+    console.print("\n[dim][👉] Press Enter to continue...[/dim]")
+    input()
+
+def handle_docker_services():
+    """Handle Docker services"""
+    console.clear()
+    console.print(Panel("[bold cyan]Docker Services[/bold cyan]", box=box.DOUBLE))
+    
+    submenu = (
+        "[cyan]1.[/cyan] List Running Containers\n"
+        "[cyan]2.[/cyan] Start All Services\n"
+        "[cyan]3.[/cyan] Stop All Services\n"
+        "[cyan]4.[/cyan] Service Status\n"
+        "[cyan]5.[/cyan] View Logs\n"
+        "[cyan]6.[/cyan] Back to Main Menu\n"
+    )
+    console.print(submenu)
+    
+    choice = Prompt.ask("Select option", choices=["1", "2", "3", "4", "5", "6"])
+    
+    if choice == "1":
+        subprocess.run(["docker-compose", "ps"])
+    elif choice == "2":
+        if Confirm.ask("Start all Docker services?"):
+            subprocess.run(["docker-compose", "up", "-d"])
+    elif choice == "3":
+        if Confirm.ask("Stop all Docker services?"):
+            subprocess.run(["docker-compose", "down"])
+    elif choice == "4":
+        subprocess.run(["docker-compose", "ps"])
+    elif choice == "6":
+        return
+    
+    console.print("\n[dim][👉] Press Enter to continue...[/dim]")
+    input()
+
+def handle_configuration():
+    """Handle system configuration"""
+    console.clear()
+    console.print(Panel("[bold cyan]System Configuration[/bold cyan]", box=box.DOUBLE))
+    
+    console.print(f"[cyan]Registry API:[/cyan] {REGISTRY_API}")
+    console.print(f"[cyan]Services Configured:[/cyan] {len(SERVICES)}")
+    
+    submenu = (
+        "\n[cyan]1.[/cyan] View Configuration\n"
+        "[cyan]2.[/cyan] Run Setup Wizard\n"
+        "[cyan]3.[/cyan] View Environment\n"
+        "[cyan]4.[/cyan] Back to Main Menu\n"
+    )
+    console.print(submenu)
+    
+    choice = Prompt.ask("Select option", choices=["1", "2", "3", "4"])
+    
+    if choice == "2":
+        subprocess.run(["universal-registry-cli", "setup"])
+    elif choice == "3":
+        console.print("\n[cyan]Environment Variables:[/cyan]")
+        for key in ["UNIVERSAL_REGISTRY_API", "UNIVERSAL_REGISTRY_DB"]:
+            value = os.getenv(key, "Not set")
+            console.print(f"  {key}: {value}")
+    elif choice == "4":
+        return
+    
+    console.print("\n[dim][👉] Press Enter to continue...[/dim]")
+    input()
+
+def handle_ai_assistant():
+    """[🧠] Handle AI Assistant interactions"""
+    console.clear()
+    console.print(Panel("[bold magenta]🧠 AI Assistant[/bold magenta]", box=box.DOUBLE))
+    
+    # Check AI status
+    ai_status = get_ai_status()
+    
+    if not ai_status or not ai_status.get("available"):
+        console.print("[⚠️] AI engines not available. Start Service Mesh first.")
+        console.print("\n[dim][👉] Press Enter to continue...[/dim]")
+        input()
+        return
+    
+    # Display AI status
+    status_data = ai_status.get("status", {})
+    engines = status_data.get('engines', {})
+    components = status_data.get('components', {})
+    
+    console.print(f"\n[✅] RAG++ Engine: {'Active' if engines.get('rag++') else 'Inactive'}")
+    console.print(f"[✅] Ensemble Fusion: {'Active' if engines.get('ensemble') else 'Inactive'}")
+    console.print(f"[✅] NLP Fusion: {'Active' if engines.get('nlp_fusion') else 'Inactive'}")
+    console.print(f"[📊] Registered Components: {components.get('total', 0)}")
+    
+    # Interactive query loop
+    console.print("\n[cyan]Ask questions to the AI (type 'back' to return)[/cyan]\n")
+    
+    while True:
+        query = Prompt.ask("[🔍]")
+        
+        if query.lower() in ['back', 'exit', 'quit', '']:
+            break
+        
+        # Query AI
+        console.print("\n[⚙️] Processing with AI engines...")
+        
+        try:
+            with console.status("[bold cyan]Thinking...[/bold cyan]"):
+                result = query_ai(query)
+            
+            if "error" in result:
+                console.print(f"[❌] Error: {result['error']}")
+            elif result.get("success"):
+                response_data = result.get("result", {})
+                
+                console.print("\n[bold green]AI Response:[/bold green]")
+                console.print(Panel(
+                    response_data.get("generated_text", "No response"),
+                    title="[cyan]Answer[/cyan]",
+                    border_style="green"
+                ))
+                
+                # Show metadata
+                console.print(f"\n[dim]Confidence: {response_data.get('confidence', 0):.2%}[/dim]")
+                console.print(f"[dim]Engines: {', '.join(result.get('engines_used', []))}[/dim]")
+                console.print(f"[dim]Time: {result.get('execution_time', 0):.2f}s[/dim]")
+                
+                # Show intent if available
+                if "intent" in response_data:
+                    console.print(f"[dim]Intent: {response_data['intent']}[/dim]")
+                
+                # Show entities if available
+                if "entities" in response_data and response_data["entities"]:
+                    entities_str = ', '.join(e[0] for e in response_data['entities'])
+                    console.print(f"[dim]Entities: {entities_str}[/dim]")
+            else:
+                console.print("[⚠️] No response from AI engines")
+        
+        except Exception as e:
+            console.print(f"[❌] Error: {str(e)}")
+        
+        console.print()
+
+# ==================== MAIN LOOP ====================
+
+def main():
+    """Main application loop"""
+    
+    while True:
+        try:
+            console.clear()
+            display_header()
+            display_main_menu()
+            
+            choice = Prompt.ask(
+                "\n[bold cyan]Select option[/bold cyan]",
+                default="1"
+            )
+            
+            if choice.lower() in ["exit", "quit", "q"]:
+                console.print("\n[cyan][👋] Goodbye![/cyan]\n")
+                break
+            elif choice.lower() == "help":
+                console.print("\n[cyan]Available commands:[/cyan]")
+                console.print("  1-12: Menu options")
+                console.print("  help: Show this help")
+                console.print("  exit: Exit application")
+                console.print("\n[dim]Press Enter to continue...[/dim]")
+                input()
+            elif choice == "1":
+                handle_system_status()
+            elif choice == "2":
+                handle_registry_management()
+            elif choice == "3":
+                handle_plugin_management()
+            elif choice == "4":
+                handle_microservices()
+            elif choice == "5":
+                handle_metrics()
+            elif choice == "6":
+                handle_ai_assistant()
+            elif choice == "7":
+                subprocess.run(["universal-registry-cli", "stream", "list"])
+                console.print("\n[dim][👉] Press Enter to continue...[/dim]")
+                input()
+            elif choice == "8":
+                subprocess.run(["universal-registry-cli", "webhook", "list"])
+                console.print("\n[dim][👉] Press Enter to continue...[/dim]")
+                input()
+            elif choice == "9":
+                query = Prompt.ask("Enter search query")
+                subprocess.run(["universal-registry-cli", "search", query])
+                console.print("\n[dim]Press Enter to continue...[/dim]")
+                input()
+            elif choice == "10":
+                handle_configuration()
+            elif choice == "11":
+                handle_docker_services()
+            elif choice == "12":
+                service = Prompt.ask("Service name (or 'all')")
+                if service == "all":
+                    subprocess.run(["docker-compose", "logs", "--tail=50"])
+                else:
+                    subprocess.run(["docker-compose", "logs", "--tail=50", service])
+                console.print("\n[dim]Press Enter to continue...[/dim]")
+                input()
+            else:
+                console.print("[red]Invalid option![/red]")
+                console.print("\n[dim]Press Enter to continue...[/dim]")
+                input()
+                
+        except KeyboardInterrupt:
+            console.print("\n\n[cyan]Goodbye! 👋[/cyan]\n")
+            break
+        except Exception as e:
+            console.print(f"\n[red]Error: {e}[/red]")
+            console.print("\n[dim]Press Enter to continue...[/dim]")
+            input()
+
+if __name__ == "__main__":
+    main()

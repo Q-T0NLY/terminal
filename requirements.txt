@@ -1,0 +1,4 @@
+# Python Dependencies
+rich>=13.7.0
+pyyaml>=6.0
+prompt_toolkit>=3.0.0

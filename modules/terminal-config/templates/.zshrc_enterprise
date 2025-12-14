@@ -1,0 +1,600 @@
+#!/bin/zsh
+# ============================================================================
+# .zshrc_enterprise - Enterprise-Grade Interactive Shell Configuration
+# macOS Big Sur Intel - Complete Professional Setup
+# ============================================================================
+# Source this file from your main .zshrc: source ~/.zshrc_enterprise
+# ============================================================================
+
+# ============================================
+# PERFORMANCE MONITORING
+# ============================================
+
+# Start profiling if requested
+if [[ -n "$ZSH_PROFILE" ]]; then
+    zmodload zsh/zprof
+fi
+
+# Measure startup time
+typeset -F SECONDS
+local startup_start=$SECONDS
+
+# ============================================
+# MODULE LOADING
+# ============================================
+
+# Load colors
+autoload -U colors && colors
+
+# Load completion system
+autoload -Uz compinit
+
+# Speed up compinit by checking cache once a day
+if [[ -n ${XDG_CACHE_HOME}/zsh/.zcompdump(#qN.mh+24) ]]; then
+    compinit -d "${XDG_CACHE_HOME}/zsh/.zcompdump"
+else
+    compinit -C -d "${XDG_CACHE_HOME}/zsh/.zcompdump"
+fi
+
+# Load version control info
+autoload -Uz vcs_info
+
+# Load URL quoting
+autoload -Uz url-quote-magic
+zle -N self-insert url-quote-magic
+
+# Load editing functions
+autoload -Uz edit-command-line
+zle -N edit-command-line
+
+# ============================================
+# ZSH OPTIONS
+# ============================================
+
+# === Directory Navigation ===
+setopt AUTO_CD                  # Change directory without cd
+setopt AUTO_PUSHD              # Push directories onto stack
+setopt PUSHD_IGNORE_DUPS       # Don't push duplicates
+setopt PUSHD_SILENT            # Don't print directory stack
+setopt PUSHD_TO_HOME           # pushd with no args goes home
+setopt CDABLE_VARS             # Allow cd to variable names
+setopt AUTO_NAME_DIRS          # Auto create named directories
+setopt MULTIOS                 # Multiple redirections
+setopt EXTENDED_GLOB           # Extended globbing
+
+# === History ===
+setopt EXTENDED_HISTORY        # Write format: ': <beginning time>:<elapsed seconds>;<command>'
+setopt HIST_EXPIRE_DUPS_FIRST  # Expire duplicates first
+setopt HIST_FIND_NO_DUPS       # Don't display duplicates in search
+setopt HIST_IGNORE_ALL_DUPS    # Remove older duplicate entries
+setopt HIST_IGNORE_DUPS        # Don't record duplicates
+setopt HIST_IGNORE_SPACE       # Don't record commands starting with space
+setopt HIST_REDUCE_BLANKS      # Remove superfluous blanks
+setopt HIST_SAVE_NO_DUPS       # Don't write duplicates
+setopt HIST_VERIFY             # Show command with history expansion before running
+setopt INC_APPEND_HISTORY      # Write to history immediately
+setopt SHARE_HISTORY           # Share history across sessions
+
+# === Completion ===
+setopt ALWAYS_TO_END           # Move cursor to end after completion
+setopt AUTO_LIST               # Automatically list choices
+setopt AUTO_MENU               # Show completion menu on successive tab
+setopt AUTO_PARAM_SLASH        # Add trailing slash for directories
+setopt COMPLETE_IN_WORD        # Complete from both ends
+setopt PATH_DIRS               # Perform path search even on command names with /
+
+# === Job Control ===
+setopt AUTO_RESUME             # Resume jobs with name
+setopt LONG_LIST_JOBS          # List jobs in long format
+setopt NOTIFY                  # Report status immediately
+setopt NO_BG_NICE              # Don't nice background jobs
+setopt NO_CHECK_JOBS           # Don't check jobs on exit
+setopt NO_HUP                  # Don't kill jobs on exit
+
+# === Input/Output ===
+setopt CORRECT                 # Command correction
+setopt INTERACTIVE_COMMENTS    # Allow comments in interactive mode
+setopt RC_QUOTES               # Allow '' inside ''
+setopt COMBINING_CHARS         # Combine zero-length punctuation
+
+# === Prompt ===
+setopt PROMPT_SUBST            # Enable parameter expansion in prompt
+
+# ============================================
+# HISTORY CONFIGURATION
+# ============================================
+
+# Create history directory
+mkdir -p "$(dirname "$HISTFILE")"
+
+# History options (from .zshenv)
+HISTSIZE=100000
+SAVEHIST=100000
+
+# ============================================
+# COMPLETION SYSTEM
+# ============================================
+
+# Completion cache directory
+mkdir -p "${XDG_CACHE_HOME}/zsh"
+
+# Completion styling
+zstyle ':completion:*' completer _complete _match _approximate
+zstyle ':completion:*' matcher-list 'm:{a-zA-Z}={A-Za-z}' 'r:|[._-]=* r:|=*' 'l:|=* r:|=*'
+zstyle ':completion:*' menu select
+zstyle ':completion:*' list-colors "${(s.:.)LS_COLORS}"
+zstyle ':completion:*' verbose yes
+zstyle ':completion:*' use-cache on
+zstyle ':completion:*' cache-path "${XDG_CACHE_HOME}/zsh/compcache"
+zstyle ':completion:*' group-name ''
+zstyle ':completion:*' special-dirs true
+
+# Completion descriptions
+zstyle ':completion:*:descriptions' format '%B%d%b'
+zstyle ':completion:*:messages' format '%d'
+zstyle ':completion:*:warnings' format 'No matches for: %d'
+zstyle ':completion:*:corrections' format '%B%d (errors: %e)%b'
+
+# Kill completion
+zstyle ':completion:*:*:kill:*' menu yes select
+zstyle ':completion:*:*:kill:*:processes' list-colors '=(#b) #([0-9]#)*=0=01;31'
+zstyle ':completion:*:kill:*' command 'ps -u $USER -o pid,%cpu,tty,cputime,cmd'
+
+# Man pages
+zstyle ':completion:*:manuals' separate-sections true
+zstyle ':completion:*:manuals.(^1*)' insert-sections true
+
+# SSH/SCP/RSYNC completion
+zstyle ':completion:*:(ssh|scp|rsync):*' tag-order 'hosts:-host:host hosts:-domain:domain hosts:-ipaddr:ip\ address *'
+zstyle ':completion:*:(scp|rsync):*' group-order users files all-files hosts-domain hosts-host hosts-ipaddr
+zstyle ':completion:*:ssh:*' group-order users hosts-domain hosts-host users hosts-ipaddr
+zstyle ':completion:*:(ssh|scp|rsync):*:hosts-host' ignored-patterns '*(.|:)*' loopback ip6-loopback localhost ip6-localhost broadcasthost
+zstyle ':completion:*:(ssh|scp|rsync):*:hosts-domain' ignored-patterns '<->.<->.<->.<->' '^[-[:alnum:]]##(.[-[:alnum:]]##)##' '*@*'
+zstyle ':completion:*:(ssh|scp|rsync):*:hosts-ipaddr' ignored-patterns '^(<->.<->.<->.<->|(|::)([[:xdigit:].]##:(#c,2))##(|%*))' '127.0.0.<->' '255.255.255.255' '::1' 'fe80::*'
+
+# ============================================
+# KEY BINDINGS
+# ============================================
+
+# Use emacs key bindings (or vi with: bindkey -v)
+bindkey -e
+
+# History search
+bindkey '^R' history-incremental-search-backward
+bindkey '^S' history-incremental-search-forward
+
+# Edit command line
+bindkey '^X^E' edit-command-line
+
+# Better word navigation
+bindkey '^[[1;5C' forward-word      # Ctrl+Right
+bindkey '^[[1;5D' backward-word     # Ctrl+Left
+bindkey '^[[H' beginning-of-line    # Home
+bindkey '^[[F' end-of-line          # End
+
+# Delete keys
+bindkey '^[[3~' delete-char         # Delete
+bindkey '^?' backward-delete-char   # Backspace
+
+# Terminal-specific bindings
+if [[ "$TERM" == "xterm-256color" ]]; then
+    bindkey '^[[1~' beginning-of-line
+    bindkey '^[[4~' end-of-line
+fi
+
+# ============================================
+# VCS INFO CONFIGURATION (Git, etc.)
+# ============================================
+
+# Enable vcs_info for git
+zstyle ':vcs_info:*' enable git svn hg
+zstyle ':vcs_info:*' check-for-changes true
+zstyle ':vcs_info:*' stagedstr '%F{green}●%f'
+zstyle ':vcs_info:*' unstagedstr '%F{yellow}●%f'
+zstyle ':vcs_info:git*' formats ' %F{blue}[%b%f%c%u%F{blue}]%f'
+zstyle ':vcs_info:git*' actionformats ' %F{blue}[%b%f%c%u%F{red}|%a%F{blue}]%f'
+
+# Call vcs_info before each prompt
+precmd() {
+    vcs_info
+}
+
+# ============================================
+# ADVANCED PROMPT CONFIGURATION
+# ============================================
+
+# Function to get current Python virtualenv
+python_venv() {
+    if [[ -n "$VIRTUAL_ENV" ]]; then
+        echo " %F{cyan}($(basename $VIRTUAL_ENV))%f"
+    fi
+}
+
+# Function to get node version
+node_version() {
+    if [[ -f "package.json" ]] && command -v node &>/dev/null; then
+        echo " %F{green}⬢ $(node -v)%f"
+    fi
+}
+
+# Function to show git status indicators
+git_status_indicators() {
+    if git rev-parse --git-dir &>/dev/null; then
+        local indicators=""
+        
+        # Check for uncommitted changes
+        if ! git diff --quiet 2>/dev/null; then
+            indicators+="*"
+        fi
+        
+        # Check for staged changes
+        if ! git diff --cached --quiet 2>/dev/null; then
+            indicators+="+"
+        fi
+        
+        # Check for untracked files
+        if [[ -n $(git ls-files --others --exclude-standard 2>/dev/null) ]]; then
+            indicators+="?"
+        fi
+        
+        # Check for unpushed commits
+        local branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null)
+        if [[ -n "$branch" ]] && [[ "$branch" != "HEAD" ]]; then
+            local ahead=$(git rev-list --count @{u}..HEAD 2>/dev/null || echo 0)
+            if [[ $ahead -gt 0 ]]; then
+                indicators+="↑$ahead"
+            fi
+        fi
+        
+        if [[ -n "$indicators" ]]; then
+            echo " %F{yellow}$indicators%f"
+        fi
+    fi
+}
+
+# Directory shortening
+prompt_dir() {
+    local dir="${PWD/#$HOME/~}"
+    local parts=("${(@s:/:)dir}")
+    
+    if [[ ${#parts[@]} -gt 3 ]]; then
+        echo "…/${parts[-2]}/${parts[-1]}"
+    else
+        echo "$dir"
+    fi
+}
+
+# Build the prompt
+PROMPT='
+%F{cyan}╭─%f %F{magenta}%n%f%F{white}@%f%F{yellow}%m%f %F{blue}$(prompt_dir)%f${vcs_info_msg_0_}$(git_status_indicators)$(python_venv)$(node_version)
+%F{cyan}╰─%f %(?.%F{green}.%F{red})❯%f '
+
+# Right prompt with timestamp and exit code
+RPROMPT='%F{240}[%*] %(?.%F{green}✓.%F{red}✗ %?)%f'
+
+# ============================================
+# CORE ALIASES
+# ============================================
+
+# === Enhanced ls ===
+if command -v gls &>/dev/null; then
+    # GNU ls (from coreutils)
+    alias ls='gls --color=auto --group-directories-first'
+    alias ll='gls -lAh --color=auto --group-directories-first'
+    alias la='gls -A --color=auto --group-directories-first'
+    alias l='gls -CF --color=auto --group-directories-first'
+else
+    # BSD ls (macOS default)
+    alias ls='ls -G'
+    alias ll='ls -lAh -G'
+    alias la='ls -A -G'
+    alias l='ls -CF -G'
+fi
+
+# Tree view
+if command -v tree &>/dev/null; then
+    alias tree='tree -C'
+    alias tree1='tree -L 1'
+    alias tree2='tree -L 2'
+    alias tree3='tree -L 3'
+fi
+
+# === Directory Navigation ===
+alias ..='cd ..'
+alias ...='cd ../..'
+alias ....='cd ../../..'
+alias .....='cd ../../../..'
+alias ~='cd ~'
+alias -- -='cd -'
+
+# Directory stack
+alias d='dirs -v'
+for index in {1..9}; do
+    alias "$index"="cd +${index}"
+done
+unset index
+
+# === Grep ===
+if command -v ggrep &>/dev/null; then
+    alias grep='ggrep --color=auto'
+    alias fgrep='gfgrep --color=auto'
+    alias egrep='gegrep --color=auto'
+else
+    alias grep='grep --color=auto'
+    alias fgrep='fgrep --color=auto'
+    alias egrep='egrep --color=auto'
+fi
+
+# === File Operations ===
+alias cp='cp -iv'
+alias mv='mv -iv'
+alias rm='rm -iv'
+alias mkdir='mkdir -pv'
+alias df='df -h'
+alias du='du -h'
+
+# === Process Management ===
+alias ps='ps aux'
+alias psg='ps aux | grep -v grep | grep -i -e VSZ -e'
+alias top='top -o cpu'
+alias htop='htop 2>/dev/null || top'
+
+# === Network ===
+alias myip='curl -s https://api.ipify.org && echo'
+alias localip="ifconfig | grep -Eo 'inet (addr:)?([0-9]*\.){3}[0-9]*' | grep -Eo '([0-9]*\.){3}[0-9]*' | grep -v '127.0.0.1'"
+alias ports='lsof -i -P -n | grep LISTEN'
+alias ping='ping -c 5'
+alias fastping='ping -c 100 -i 0.2'
+
+# === System ===
+alias reload='source ~/.zshrc'
+alias path='echo -e ${PATH//:/\\n}'
+alias update='brew update && brew upgrade && brew cleanup'
+alias cleanup='find . -type f -name "*.DS_Store" -delete; find . -type f -name "*.pyc" -delete'
+
+# === Development ===
+alias g='git'
+alias gst='git status'
+alias gco='git checkout'
+alias glog='git log --oneline --graph --decorate'
+alias gdiff='git diff'
+alias gadd='git add'
+alias gcommit='git commit'
+alias gpush='git push'
+alias gpull='git pull'
+
+# Python
+alias py='python3'
+alias pip='pip3'
+alias venv='python3 -m venv venv && source venv/bin/activate'
+alias activate='source venv/bin/activate || source .venv/bin/activate'
+
+# Node
+alias npm-global='npm list -g --depth=0'
+alias yarn-global='yarn global list'
+
+# Docker
+alias d='docker'
+alias dc='docker-compose'
+alias dps='docker ps'
+alias dimg='docker images'
+alias dexec='docker exec -it'
+alias dprune='docker system prune -af'
+
+# === Utilities ===
+alias timestamp='date +%Y%m%d_%H%M%S'
+alias week='date +%V'
+alias timer='echo "Timer started. Stop with Ctrl-D." && date && time cat && date'
+alias weather='curl wttr.in'
+
+# ============================================
+# ADVANCED FUNCTIONS
+# ============================================
+
+# === Smart cd with auto-ls ===
+chpwd() {
+    emulate -L zsh
+    ls -A
+}
+
+# === Create and enter directory ===
+mkcd() {
+    mkdir -p "$1" && cd "$1"
+}
+
+# === Extract archives ===
+extract() {
+    if [[ -f "$1" ]]; then
+        case "$1" in
+            *.tar.bz2)   tar xjf "$1"    ;;
+            *.tar.gz)    tar xzf "$1"    ;;
+            *.bz2)       bunzip2 "$1"    ;;
+            *.rar)       unrar x "$1"    ;;
+            *.gz)        gunzip "$1"     ;;
+            *.tar)       tar xf "$1"     ;;
+            *.tbz2)      tar xjf "$1"    ;;
+            *.tgz)       tar xzf "$1"    ;;
+            *.zip)       unzip "$1"      ;;
+            *.Z)         uncompress "$1" ;;
+            *.7z)        7z x "$1"       ;;
+            *.xz)        unxz "$1"       ;;
+            *.tar.xz)    tar xJf "$1"    ;;
+            *)           echo "'$1' cannot be extracted via extract()" ;;
+        esac
+    else
+        echo "'$1' is not a valid file"
+    fi
+}
+
+# === Find file by name ===
+ff() {
+    find . -type f -iname "*$1*" 2>/dev/null
+}
+
+# === Find directory by name ===
+fd() {
+    find . -type d -iname "*$1*" 2>/dev/null
+}
+
+# === Search file contents ===
+ftext() {
+    grep -rnw . -e "$1" 2>/dev/null
+}
+
+# === Backup file ===
+backup() {
+    local file="$1"
+    if [[ -f "$file" ]]; then
+        cp -v "$file" "${file}.backup.$(date +%Y%m%d_%H%M%S)"
+    elif [[ -d "$file" ]]; then
+        cp -rv "$file" "${file}.backup.$(date +%Y%m%d_%H%M%S)"
+    else
+        echo "File or directory not found: $file"
+    fi
+}
+
+# === Quick web server ===
+serve() {
+    local port="${1:-8000}"
+    echo "Starting HTTP server on port $port..."
+    python3 -m http.server "$port"
+}
+
+# === Process kill by name ===
+ka() {
+    local signal="${2:-TERM}"
+    local pids=$(ps aux | grep -v grep | grep -i "$1" | awk '{print $2}')
+    
+    if [[ -n "$pids" ]]; then
+        echo "Killing processes: $pids"
+        kill "-$signal" $pids
+    else
+        echo "No processes found matching: $1"
+    fi
+}
+
+# === Directory size ===
+dirsize() {
+    du -sh "${1:-.}" | sort -hr | head -20
+}
+
+# === Git clone and enter ===
+gclone() {
+    git clone "$1" && cd "$(basename "$1" .git)"
+}
+
+# === Create GitHub repo ===
+ghrepo() {
+    if ! command -v gh &>/dev/null; then
+        echo "GitHub CLI (gh) not installed"
+        return 1
+    fi
+    
+    local name="$1"
+    local desc="$2"
+    
+    if [[ -z "$name" ]]; then
+        echo "Usage: ghrepo <name> [description]"
+        return 1
+    fi
+    
+    gh repo create "$name" --public ${desc:+--description "$desc"}
+}
+
+# === System info ===
+sysinfo() {
+    echo ""
+    echo "╔═══════════════════════════════════════════════════════════╗"
+    echo "║                    SYSTEM INFORMATION                     ║"
+    echo "╚═══════════════════════════════════════════════════════════╝"
+    echo ""
+    echo "OS: $(sw_vers -productName) $(sw_vers -productVersion)"
+    echo "Kernel: $(uname -r)"
+    echo "Architecture: $(uname -m)"
+    echo "Shell: $SHELL ($ZSH_VERSION)"
+    echo "Hostname: $(hostname)"
+    echo "Uptime: $(uptime | awk '{print $3,$4}' | sed 's/,//')"
+    echo ""
+    echo "CPU: $(sysctl -n machdep.cpu.brand_string)"
+    echo "Cores: $(sysctl -n hw.ncpu)"
+    echo "Memory: $(sysctl -n hw.memsize | awk '{print $0/1024/1024/1024 " GB"}')"
+    echo ""
+    echo "Disk Usage:"
+    df -h / | tail -1 | awk '{print "  " $1 ": " $3 " used / " $2 " total (" $5 " used)"}'
+    echo ""
+}
+
+# === Path symlink resolver ===
+resolve() {
+    local target="$1"
+    
+    if [[ -z "$target" ]]; then
+        echo "Usage: resolve <file|directory>"
+        return 1
+    fi
+    
+    if [[ ! -e "$target" ]]; then
+        echo "Not found: $target"
+        return 1
+    fi
+    
+    local resolved=""
+    local current="$target"
+    local depth=0
+    local max_depth=10
+    
+    echo "Resolving: $current"
+    echo ""
+    
+    while [[ -L "$current" ]] && [[ $depth -lt $max_depth ]]; do
+        local link_target="$(readlink "$current")"
+        echo "  [$depth] -> $link_target"
+        
+        if [[ "$link_target" == /* ]]; then
+            current="$link_target"
+        else
+            current="$(dirname "$current")/$link_target"
+        fi
+        
+        ((depth++))
+    done
+    
+    if [[ $depth -eq $max_depth ]]; then
+        echo ""
+        echo "⚠️  Maximum depth reached - possible circular symlink"
+    else
+        echo ""
+        echo "Final: $(cd "$(dirname "$current")" && pwd -P)/$(basename "$current")"
+    fi
+}
+
+# ============================================
+# SYNTAX HIGHLIGHTING & SUGGESTIONS
+# ============================================
+
+# Load zsh-syntax-highlighting (if installed via Homebrew)
+if [[ -f "/usr/local/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh" ]]; then
+    source "/usr/local/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh"
+fi
+
+# Load zsh-autosuggestions (if installed via Homebrew)
+if [[ -f "/usr/local/share/zsh-autosuggestions/zsh-autosuggestions.zsh" ]]; then
+    source "/usr/local/share/zsh-autosuggestions/zsh-autosuggestions.zsh"
+    ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE='fg=240'
+    ZSH_AUTOSUGGEST_STRATEGY=(history completion)
+fi
+
+# ============================================
+# PERFORMANCE REPORTING
+# ============================================
+
+# Report startup time if profiling
+if [[ -n "$ZSH_PROFILE" ]]; then
+    local startup_end=$SECONDS
+    echo "Startup time: $(($startup_end - $startup_start)) seconds"
+    zprof
+fi
+
+# ============================================
+# END OF .zshrc_enterprise
+# ============================================

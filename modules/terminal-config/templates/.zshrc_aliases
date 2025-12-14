@@ -1,0 +1,374 @@
+#!/bin/zsh
+# ============================================================================
+# .zshrc_aliases - Comprehensive Alias Collection
+# macOS Big Sur Intel - Enterprise Configuration
+# ============================================================================
+# Advanced alias management with auto-propagation and categorization
+# ============================================================================
+
+# ============================================
+# ALIAS REGISTRY SYSTEM
+# ============================================
+
+# Create alias registry
+export ALIAS_REGISTRY="${XDG_STATE_HOME}/zsh/alias_registry"
+mkdir -p "$(dirname "$ALIAS_REGISTRY")"
+
+# Function to register and create alias
+register_alias() {
+    local name="$1"
+    local command="$2"
+    local description="$3"
+    
+    alias "$name"="$command"
+    echo "${name}|${command}|${description}" >> "$ALIAS_REGISTRY.tmp"
+}
+
+# Clear temporary registry
+> "$ALIAS_REGISTRY.tmp"
+
+# ============================================
+# FILE SYSTEM OPERATIONS
+# ============================================
+
+# Enhanced ls variants
+register_alias "ls" "gls --color=auto --group-directories-first" "List files with colors"
+register_alias "ll" "gls -lAh --color=auto --group-directories-first" "Long format list"
+register_alias "la" "gls -A --color=auto --group-directories-first" "List all files"
+register_alias "l" "gls -CF --color=auto" "Compact list"
+register_alias "lsd" "gls -lAh --color=auto --group-directories-first | grep ^d" "List directories only"
+register_alias "lsf" "gls -lAh --color=auto --group-directories-first | grep -v ^d" "List files only"
+register_alias "lt" "gls -lAhtr --color=auto" "List sorted by time"
+register_alias "lsize" "gls -lAhSr --color=auto" "List sorted by size"
+
+# Tree view
+register_alias "tree" "tree -C" "Tree view with colors"
+register_alias "tree1" "tree -L 1" "Tree depth 1"
+register_alias "tree2" "tree -L 2" "Tree depth 2"
+register_alias "tree3" "tree -L 3" "Tree depth 3"
+register_alias "treea" "tree -a" "Tree with hidden files"
+register_alias "treef" "tree -f" "Tree with full paths"
+
+# Directory navigation
+register_alias ".." "cd .." "Up one directory"
+register_alias "..." "cd ../.."  "Up two directories"
+register_alias "...." "cd ../../.." "Up three directories"
+register_alias "....." "cd ../../../.." "Up four directories"
+register_alias "~" "cd ~" "Go to home directory"
+register_alias "-" "cd -" "Go to previous directory"
+register_alias "home" "cd ~" "Go to home"
+register_alias "root" "cd /" "Go to root"
+register_alias "desktop" "cd ~/Desktop" "Go to Desktop"
+register_alias "downloads" "cd ~/Downloads" "Go to Downloads"
+register_alias "documents" "cd ~/Documents" "Go to Documents"
+
+# File operations
+register_alias "cp" "cp -iv" "Interactive copy"
+register_alias "mv" "mv -iv" "Interactive move"
+register_alias "rm" "rm -iv" "Interactive remove"
+register_alias "mkdir" "mkdir -pv" "Create directory with parents"
+register_alias "rmdir" "rm -rf" "Remove directory recursively"
+register_alias "touch" "touch" "Create empty file"
+
+# File viewing
+register_alias "cat" "cat" "Show file contents"
+register_alias "less" "less -R" "Page through file"
+register_alias "more" "more" "Page through file"
+register_alias "head" "head" "Show first lines"
+register_alias "tail" "tail" "Show last lines"
+register_alias "tailf" "tail -f" "Follow file updates"
+
+# ============================================
+# SEARCH AND FIND
+# ============================================
+
+register_alias "grep" "ggrep --color=auto" "Search with colors"
+register_alias "fgrep" "fgrep --color=auto" "Fixed string search"
+register_alias "egrep" "egrep --color=auto" "Extended regex search"
+register_alias "rg" "rg --color=auto" "Ripgrep search"
+register_alias "ag" "ag --color" "Silver searcher"
+
+# Find shortcuts
+register_alias "findname" "find . -name" "Find by name"
+register_alias "findtype" "find . -type" "Find by type"
+register_alias "findsize" "find . -size" "Find by size"
+register_alias "findmod" "find . -mtime" "Find by modification time"
+
+# ============================================
+# PROCESS MANAGEMENT
+# ============================================
+
+register_alias "ps" "ps aux" "Show all processes"
+register_alias "psg" "ps aux | grep -v grep | grep -i -e VSZ -e" "Search processes"
+register_alias "top" "top -o cpu" "Top processes by CPU"
+register_alias "htop" "htop" "Interactive process viewer"
+register_alias "cpu" "top -o cpu" "CPU intensive processes"
+register_alias "mem" "top -o mem" "Memory intensive processes"
+
+# Kill shortcuts
+register_alias "k" "kill" "Kill process"
+register_alias "k9" "kill -9" "Force kill process"
+register_alias "ka" "killall" "Kill all processes by name"
+register_alias "ka9" "killall -9" "Force kill all by name"
+
+# ============================================
+# DISK USAGE
+# ============================================
+
+register_alias "df" "df -h" "Disk free space"
+register_alias "du" "du -h" "Disk usage"
+register_alias "du1" "du -h --max-depth=1" "Disk usage depth 1"
+register_alias "dus" "du -sh" "Disk usage summary"
+register_alias "disk" "df -h" "Disk information"
+register_alias "free" "vm_stat" "Memory information"
+
+# ============================================
+# NETWORK
+# ============================================
+
+register_alias "myip" "curl -s https://api.ipify.org && echo" "Public IP address"
+register_alias "localip" "ipconfig getifaddr en0" "Local IP address"
+register_alias "ips" "ifconfig -a | grep -o 'inet6\? \(addr:\)\?\s\?\(\(\([0-9]\+\.\)\{3\}[0-9]\+\)\|[a-fA-F0-9:]\+\)' | awk '{ sub(/inet6? (addr:)? ?/, \"\"); print }'" "All IP addresses"
+register_alias "ports" "lsof -i -P -n | grep LISTEN" "Open ports"
+register_alias "listening" "lsof -i -P -n | grep LISTEN" "Listening ports"
+
+register_alias "ping" "ping -c 5" "Ping 5 times"
+register_alias "fastping" "ping -c 100 -i 0.2" "Fast ping"
+register_alias "wget" "wget -c" "Resume downloads"
+register_alias "curl" "curl -L" "Follow redirects"
+
+# Network utilities
+register_alias "speedtest" "curl -s https://raw.githubusercontent.com/sivel/speedtest-cli/master/speedtest.py | python3 -" "Internet speed test"
+register_alias "httpserver" "python3 -m http.server" "Simple HTTP server"
+register_alias "httpdump" "sudo tcpdump -i any -n -s 0 -w - | grep -a -o -E \"Host\: .*|GET \/.*\"" "HTTP traffic dump"
+
+# ============================================
+# GIT ALIASES
+# ============================================
+
+register_alias "g" "git" "Git shorthand"
+register_alias "gst" "git status" "Git status"
+register_alias "gd" "git diff" "Git diff"
+register_alias "gdc" "git diff --cached" "Git diff cached"
+register_alias "ga" "git add" "Git add"
+register_alias "gaa" "git add --all" "Git add all"
+register_alias "gc" "git commit" "Git commit"
+register_alias "gcm" "git commit -m" "Git commit with message"
+register_alias "gca" "git commit --amend" "Git commit amend"
+register_alias "gco" "git checkout" "Git checkout"
+register_alias "gcb" "git checkout -b" "Git checkout new branch"
+register_alias "gb" "git branch" "Git branch"
+register_alias "gba" "git branch -a" "Git all branches"
+register_alias "gbd" "git branch -d" "Git delete branch"
+register_alias "gm" "git merge" "Git merge"
+register_alias "gp" "git push" "Git push"
+register_alias "gpf" "git push --force-with-lease" "Git force push safe"
+register_alias "gpu" "git push -u origin HEAD" "Git push upstream"
+register_alias "gpl" "git pull" "Git pull"
+register_alias "gpr" "git pull --rebase" "Git pull rebase"
+register_alias "gf" "git fetch" "Git fetch"
+register_alias "gfa" "git fetch --all" "Git fetch all"
+register_alias "gl" "git log" "Git log"
+register_alias "glo" "git log --oneline" "Git log oneline"
+register_alias "glog" "git log --oneline --graph --decorate" "Git log graph"
+register_alias "glol" "git log --graph --pretty=format:'%Cred%h%Creset -%C(yellow)%d%Creset %s %Cgreen(%cr) %C(bold blue)<%an>%Creset' --abbrev-commit" "Git log pretty"
+register_alias "gss" "git status -s" "Git status short"
+register_alias "grh" "git reset HEAD" "Git reset HEAD"
+register_alias "grhh" "git reset HEAD --hard" "Git reset hard"
+register_alias "gclean" "git clean -fd" "Git clean untracked"
+register_alias "gwip" "git add -A && git commit -m 'WIP'" "Git work in progress"
+register_alias "gunwip" "git log -n 1 | grep -q -c 'WIP' && git reset HEAD~1" "Git unwip"
+
+# ============================================
+# DOCKER ALIASES
+# ============================================
+
+register_alias "d" "docker" "Docker"
+register_alias "dc" "docker-compose" "Docker Compose"
+register_alias "dps" "docker ps" "Docker processes"
+register_alias "dpsa" "docker ps -a" "Docker all processes"
+register_alias "dimg" "docker images" "Docker images"
+register_alias "dexec" "docker exec -it" "Docker exec interactive"
+register_alias "dlogs" "docker logs -f" "Docker logs follow"
+register_alias "dstop" "docker stop" "Docker stop container"
+register_alias "drm" "docker rm" "Docker remove container"
+register_alias "drmi" "docker rmi" "Docker remove image"
+register_alias "dprune" "docker system prune -af" "Docker prune all"
+register_alias "dvol" "docker volume ls" "Docker volumes"
+register_alias "dnet" "docker network ls" "Docker networks"
+
+# Docker Compose
+register_alias "dcup" "docker-compose up -d" "Docker Compose up"
+register_alias "dcdown" "docker-compose down" "Docker Compose down"
+register_alias "dcrestart" "docker-compose restart" "Docker Compose restart"
+register_alias "dclogs" "docker-compose logs -f" "Docker Compose logs"
+register_alias "dcps" "docker-compose ps" "Docker Compose processes"
+register_alias "dcexec" "docker-compose exec" "Docker Compose exec"
+
+# ============================================
+# PYTHON ALIASES
+# ============================================
+
+register_alias "py" "python3" "Python 3"
+register_alias "py2" "python2" "Python 2"
+register_alias "pip" "pip3" "Pip 3"
+register_alias "pip2" "pip2" "Pip 2"
+register_alias "venv" "python3 -m venv venv && source venv/bin/activate" "Create and activate venv"
+register_alias "activate" "source venv/bin/activate || source .venv/bin/activate" "Activate venv"
+register_alias "deactivate" "deactivate" "Deactivate venv"
+register_alias "pipreq" "pip freeze > requirements.txt" "Generate requirements"
+register_alias "pipinstall" "pip install -r requirements.txt" "Install requirements"
+register_alias "pipupgrade" "pip install --upgrade pip" "Upgrade pip"
+register_alias "pyserver" "python3 -m http.server" "Python HTTP server"
+register_alias "pyclean" "find . -type f -name '*.pyc' -delete; find . -type d -name '__pycache__' -delete" "Clean Python cache"
+
+# ============================================
+# NODE.JS / NPM ALIASES
+# ============================================
+
+register_alias "ni" "npm install" "NPM install"
+register_alias "nis" "npm install --save" "NPM install save"
+register_alias "nid" "npm install --save-dev" "NPM install dev"
+register_alias "nig" "npm install -g" "NPM install global"
+register_alias "nu" "npm uninstall" "NPM uninstall"
+register_alias "nup" "npm update" "NPM update"
+register_alias "nr" "npm run" "NPM run"
+register_alias "ns" "npm start" "NPM start"
+register_alias "nt" "npm test" "NPM test"
+register_alias "nb" "npm run build" "NPM build"
+register_alias "nls" "npm list --depth=0" "NPM list"
+register_alias "nlsg" "npm list -g --depth=0" "NPM list global"
+register_alias "noutdated" "npm outdated" "NPM outdated"
+register_alias "nprune" "npm prune" "NPM prune"
+
+# Yarn
+register_alias "y" "yarn" "Yarn"
+register_alias "ya" "yarn add" "Yarn add"
+register_alias "yad" "yarn add --dev" "Yarn add dev"
+register_alias "yag" "yarn global add" "Yarn global add"
+register_alias "yr" "yarn remove" "Yarn remove"
+register_alias "yup" "yarn upgrade" "Yarn upgrade"
+register_alias "ys" "yarn start" "Yarn start"
+register_alias "yt" "yarn test" "Yarn test"
+register_alias "yb" "yarn build" "Yarn build"
+
+# ============================================
+# SYSTEM MANAGEMENT
+# ============================================
+
+register_alias "reload" "source ~/.zshrc" "Reload zsh config"
+register_alias "edit" "\$EDITOR ~/.zshrc" "Edit zsh config"
+register_alias "path" "echo -e \${PATH//:/\\n}" "Show PATH"
+register_alias "fpath" "echo -e \${FPATH//:/\\n}" "Show FPATH"
+
+# Homebrew
+register_alias "brewup" "brew update && brew upgrade && brew cleanup" "Homebrew update all"
+register_alias "brewlist" "brew list" "Homebrew list"
+register_alias "brewinfo" "brew info" "Homebrew info"
+register_alias "brewsearch" "brew search" "Homebrew search"
+register_alias "brewinstall" "brew install" "Homebrew install"
+register_alias "brewuninstall" "brew uninstall" "Homebrew uninstall"
+register_alias "brewdeps" "brew deps --tree" "Homebrew dependencies"
+
+# macOS specific
+register_alias "showfiles" "defaults write com.apple.finder AppleShowAllFiles -bool true && killall Finder" "Show hidden files"
+register_alias "hidefiles" "defaults write com.apple.finder AppleShowAllFiles -bool false && killall Finder" "Hide hidden files"
+register_alias "cleanup" "find . -type f -name '*.DS_Store' -delete; find . -type f -name '*.pyc' -delete" "Clean up cache files"
+register_alias "emptytrash" "sudo rm -rfv /Volumes/*/.Trashes; sudo rm -rfv ~/.Trash; sudo rm -rfv /private/var/log/asl/*.asl" "Empty trash"
+register_alias "flushdns" "sudo dscacheutil -flushcache; sudo killall -HUP mDNSResponder" "Flush DNS cache"
+register_alias "sleepoff" "sudo pmset -a disablesleep 1" "Disable sleep"
+register_alias "sleepon" "sudo pmset -a disablesleep 0" "Enable sleep"
+
+# ============================================
+# UTILITIES
+# ============================================
+
+register_alias "now" "date '+%Y-%m-%d %H:%M:%S'" "Current date/time"
+register_alias "timestamp" "date +%Y%m%d_%H%M%S" "Timestamp"
+register_alias "week" "date +%V" "Week number"
+register_alias "timer" "echo 'Timer started. Stop with Ctrl-D.' && date && time cat && date" "Simple timer"
+register_alias "weather" "curl wttr.in" "Weather report"
+register_alias "moon" "curl wttr.in/Moon" "Moon phase"
+register_alias "calc" "bc -l" "Calculator"
+register_alias "random" "openssl rand -hex 16" "Random hex string"
+
+# File compression
+register_alias "mktar" "tar -cvf" "Create tar"
+register_alias "mkgz" "tar -cvzf" "Create tar.gz"
+register_alias "mkbz2" "tar -cvjf" "Create tar.bz2"
+register_alias "untar" "tar -xvf" "Extract tar"
+register_alias "ungz" "tar -xvzf" "Extract tar.gz"
+register_alias "unbz2" "tar -xvjf" "Extract tar.bz2"
+
+# ============================================
+# SECURITY
+# ============================================
+
+register_alias "genpass" "openssl rand -base64 32" "Generate password"
+register_alias "sha256" "shasum -a 256" "SHA256 hash"
+register_alias "md5" "md5" "MD5 hash"
+register_alias "sshkey" "ssh-keygen -t ed25519 -C" "Generate SSH key"
+register_alias "sshcopy" "pbcopy < ~/.ssh/id_ed25519.pub" "Copy SSH public key"
+
+# ============================================
+# DEVELOPMENT TOOLS
+# ============================================
+
+# Text editors
+register_alias "vim" "vim" "Vim editor"
+register_alias "vi" "vim" "Vi editor"
+register_alias "code" "code" "VS Code"
+register_alias "subl" "subl" "Sublime Text"
+
+# JSON/YAML
+register_alias "jsonpp" "python3 -m json.tool" "JSON pretty print"
+register_alias "yamllint" "yamllint" "YAML linter"
+
+# ============================================
+# FINALIZE ALIAS REGISTRY
+# ============================================
+
+# Sort and deduplicate registry
+if [[ -f "$ALIAS_REGISTRY.tmp" ]]; then
+    sort -u "$ALIAS_REGISTRY.tmp" > "$ALIAS_REGISTRY"
+    rm "$ALIAS_REGISTRY.tmp"
+fi
+
+# Function to list all registered aliases
+listalias() {
+    if [[ -f "$ALIAS_REGISTRY" ]]; then
+        echo ""
+        echo "╔═══════════════════════════════════════════════════════════╗"
+        echo "║                  REGISTERED ALIASES                        ║"
+        echo "╚═══════════════════════════════════════════════════════════╝"
+        echo ""
+        
+        local category=""
+        
+        while IFS='|' read -r name command description; do
+            printf "%-15s %-40s %s\n" "$name" "$command" "$description"
+        done < "$ALIAS_REGISTRY"
+        
+        echo ""
+    else
+        echo "No aliases registered"
+    fi
+}
+
+# Function to search aliases
+findalias() {
+    if [[ -z "$1" ]]; then
+        echo "Usage: findalias <search_term>"
+        return 1
+    fi
+    
+    if [[ -f "$ALIAS_REGISTRY" ]]; then
+        grep -i "$1" "$ALIAS_REGISTRY" | while IFS='|' read -r name command description; do
+            printf "%-15s %-40s %s\n" "$name" "$command" "$description"
+        done
+    fi
+}
+
+# ============================================
+# END OF .zshrc_aliases
+# ============================================
